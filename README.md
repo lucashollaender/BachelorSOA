@@ -1,0 +1,2 @@
+# BachelorSOA
+SOA alogrithms
