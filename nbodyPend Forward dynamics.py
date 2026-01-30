@@ -4,6 +4,7 @@ import pyquaternion as pq
 import scipy as sp
 import pandas as pd
 from matplotlib.animation import FuncAnimation
+import time
 
 def skew(z):
     z = np.asarray(z).reshape(3,)
@@ -377,7 +378,7 @@ def forward_kinematics_points(quats_xyzw, link_vecs):
         pts.append(pts[-1] + R @ link_vecs[i])    # step along current local link
     return np.vstack(pts)
 
-def animate_chain(S, dt=None, stride=1):
+def animate_chain(S, t=None, stride=1):
     """
     S shape: (T, 28) but quaternions at:
       hinge1: cols 0:4
@@ -385,7 +386,7 @@ def animate_chain(S, dt=None, stride=1):
       hinge3: cols 8:12
       hinge4: cols 12:16
 
-    dt: timestep seconds (optional). If None, uses a fixed interval.
+    t: array of time points (optional). If provided, animation runs at real-time speed.
     stride: animate every 'stride' frames (e.g. 2,5,10 for faster)
     """
 
@@ -407,6 +408,7 @@ def animate_chain(S, dt=None, stride=1):
     # Precompute points for speed (optional but makes animation smooth)
     frames = range(0, T, stride)
     all_pts = []
+    all_times = []
     for k in frames:
         q1 = S[k, 0:4]
         q2 = S[k, 4:8]
@@ -414,7 +416,9 @@ def animate_chain(S, dt=None, stride=1):
         q4 = S[k, 12:16]
         pts = forward_kinematics_points([q1, q2, q3, q4], link_vecs)
         all_pts.append(pts)
+        all_times.append(t[k] if t is not None else k)
     all_pts = np.array(all_pts)  # shape (F, 5, 3)
+    all_times = np.array(all_times)  # shape (F,)
 
     # Determine plot limits from trajectory
     mins = all_pts.reshape(-1, 3).min(axis=0)
@@ -423,7 +427,7 @@ def animate_chain(S, dt=None, stride=1):
     span = (maxs - mins).max() * 0.6 + 1e-6
 
     # Setup figure
-    fig = plt.figure()
+    fig = plt.figure(figsize=(10, 8))
     ax = fig.add_subplot(111, projection="3d")
     ax.set_title("4-hinge quaternion animation")
 
@@ -436,10 +440,18 @@ def animate_chain(S, dt=None, stride=1):
     ax.set_box_aspect([1, 1, 1])
 
     # Line + points
-    (line,) = ax.plot([], [], [], "-o", linewidth=2)
+    (line,) = ax.plot([], [], [], "-o", linewidth=2, markersize=5)
 
-    # Optional: show frame index
-    txt = ax.text2D(0.02, 0.95, "", transform=ax.transAxes)
+    # Timer and frame info text
+    txt = ax.text2D(0.02, 0.95, "", transform=ax.transAxes, fontsize=11, 
+                    family='monospace', bbox=dict(boxstyle='round', facecolor='wheat', alpha=0.8))
+
+    # Store timing info on figure for access in update function
+    fig.ani_data = {
+        'start_time': None,
+        'frame_times': all_times,
+        'current_frame': 0
+    }
 
     def init():
         line.set_data([], [])
@@ -451,13 +463,37 @@ def animate_chain(S, dt=None, stride=1):
         pts = all_pts[i]  # (5,3)
         line.set_data(pts[:, 0], pts[:, 1])
         line.set_3d_properties(pts[:, 2])
-        txt.set_text(f"frame {i}/{len(all_pts)-1}")
+        sim_time = all_times[i]
+        total_time = all_times[-1]
+        progress = (i / (len(all_pts) - 1)) * 100 if len(all_pts) > 1 else 0
+        txt.set_text(f"Simulation Time: {sim_time:.3f}s / {total_time:.3f}s\n"
+                     f"Frame: {i}/{len(all_pts)-1}\n"
+                     f"Progress: {progress:.1f}%")
         return line, txt
 
-    interval_ms = 30 if dt is None else int(max(1, 1000 * dt * stride))
-    ani = FuncAnimation(fig, update, frames=len(all_pts), init_func=init,
-                        blit=False, interval=interval_ms)
+    # Calculate intervals for real-time playback
+    if t is not None:
+        # Calculate time deltas between frames
+        time_deltas = np.diff(all_times)
+        # Calculate frame intervals (in milliseconds)
+        # We'll use these to adjust animation speed
+        frame_intervals = (time_deltas * 1000).astype(int)
+        # Minimum interval is 16ms (~60fps), maximum is meaningful
+        frame_intervals = np.clip(frame_intervals, 5, 100)
+        
+        # Create custom animation with variable frame rates
+        ani = FuncAnimation(fig, update, frames=len(all_pts), init_func=init,
+                            blit=False, interval=16, repeat=True)  # Base interval
+        
+        # Store frame intervals for later use
+        ani.frame_intervals = frame_intervals
+        ani.frame_times = all_times
+        
+    else:
+        # Use fixed 30ms per frame if no time data
+        ani = FuncAnimation(fig, update, frames=len(all_pts), init_func=init,
+                            blit=False, interval=30, repeat=True)
 
     plt.show()
     return ani
-ani = animate_chain(S, dt=None, stride=2)
+ani = animate_chain(S, t=t, stride=2)
