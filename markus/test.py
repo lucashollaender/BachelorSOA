@@ -6,3 +6,6 @@ import scipy as sp
 import pandas as pd
 from matplotlib.animation import FuncAnimation
 import time
+
+H = sb.hinge_map("fixed")
+print(H)
