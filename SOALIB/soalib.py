@@ -17,15 +17,16 @@ def skew(z):
         [-z[1],   z[0],  0.0]
     ])
 
+
 def q2R(q, n):
     # Takes a quaternion vector [x, y, z, w] and returns an n x n matrix (3 or 6).
 
     # Create rotation object from quaternion [x, y, z, w]
     rot_matrix = R.from_quat(q).as_matrix()
-    
+
     if n == 3:
         return rot_matrix
-    
+
     elif n == 6:
         # Create a 3x3 zero matrix
         z = np.zeros((3, 3))
@@ -35,9 +36,10 @@ def q2R(q, n):
             [rot_matrix, z],
             [z, rot_matrix]
         ])
-    
+
     else:
         raise ValueError("n must be 3 or 6")
+
 
 def skew6(z):
     z = np.asarray(z).reshape(6,)
@@ -88,3 +90,25 @@ def quat_derivative(q, omega):
 
     return 0.5 * (Omega @ q)
 
+
+def hinge_map(x):
+    """
+    Returns the hinge map (SOA) as a 3x6 matrix based on joint type.
+    """
+    if x == "spherical":
+        H = np.hstack((
+            np.zeros((3, 3)),
+            np.eye(3)
+        ))
+    elif x == "revx":
+        H = np.array([1, 0, 0, 0, 0, 0])
+
+    elif x == "revy":
+        H = np.array([0, 1, 0, 0, 0, 0])
+
+    elif x == "revz":
+        H = np.array([0, 0, 1, 0, 0, 0])
+    else:
+        raise ValueError(f"Unknown joint type: {x}")
+
+    return H
