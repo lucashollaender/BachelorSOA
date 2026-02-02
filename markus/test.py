@@ -1,6 +1,11 @@
 from SOALIB import soalib as sb
 import numpy as np
-A = np.array([1, 2, 3])
-print(A)
+import matplotlib.pyplot as plt
+import pyquaternion as pq
+import scipy as sp
+import pandas as pd
+from matplotlib.animation import FuncAnimation
+import time
 
-print(sb.skew(A))
+H = sb.hinge_map("fixed")
+print(H)
