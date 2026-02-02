@@ -100,6 +100,13 @@ def hinge_map(x):
             np.zeros((3, 3)),
             np.eye(3)
         ))
+
+    elif x == "fixed":
+        H = np.zeros(6, 6)
+
+    elif x == "free":
+        H = np.eye(6)
+
     elif x == "revx":
         H = np.array([1, 0, 0, 0, 0, 0])
 
