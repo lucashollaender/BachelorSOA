@@ -154,7 +154,7 @@ def ATBI(R, beta, tau, H, M, L):
     R_inertial = np.eye(3)
     Ri = [None] * n
     for k in range(n - 1, -1, -1):
-        R_inertial =   R_inertial  @ R[k] 
+        R_inertial =  R[k] @ R_inertial 
         Ri[k]= R_inertial
     
     # -------- Gather sweep init --------
@@ -214,7 +214,7 @@ def ATBI(R, beta, tau, H, M, L):
     for k in range(n - 1, -1, -1):
         alphaplus[k] = phi(R[k].T @ L[k]).T @ R6(R[k].T) @ alpha[k + 1]
 
-        vbar[k]=v[k]- (G[k].T @ R6(Ri[k].T) @ g)
+        vbar[k]=v[k]- (G[k].T @ R6(Ri[k].T)@g) 
         thetaddot[k] = vbar[k] - (G[k].T @ alphaplus[k])
 
         alpha[k] = alphaplus[k] + (H[k].T @ thetaddot[k]) + a_corolis[k]
@@ -249,7 +249,7 @@ def odefun(t, S, SystemData):
     Beta = S[4*n:7*n].reshape(n, 3) # (n,3) omegas
 
     # optional safety: normalize quaternions (prevents drift)
-    #Q = Q / np.linalg.norm(Q, axis=1, keepdims=True)
+    # Q = Q / np.linalg.norm(Q, axis=1, keepdims=True)
 
     beta_list = [Beta[i] for i in range(n)]
 
@@ -298,9 +298,11 @@ def build_system_data(
     """
 
     # --- H: list of (3x6) hinge maps ---
-    H_one = np.hstack([np.eye(3), np.zeros((3, 3))])  # 3x6
-    H = [H_one.copy() for _ in range(n)]
-
+    #H_one = np.hstack([np.eye(3), np.zeros((3, 3))])  # 3x6
+    #H = [H_one.copy() for _ in range(n)]
+    H = [None] * n
+    H[0]= np.hstack([np.zeros((6, 6))]) 
+    H[1]= np.hstack([np.eye(3), np.zeros((3, 3))])
     # --- L: link vectors (3,) ---
     link_vec = np.asarray(link_vec, dtype=float).reshape(3,)
     L = [link_vec.copy() for _ in range(n)]
@@ -332,7 +334,7 @@ def build_system_data(
 
 def make_initial_state(n):
     # first quaternion: your existing one (30° about x)
-    q1 = np.array([np.sin(np.pi/12), 0.0, 0.0, np.cos(np.pi/12)], dtype=float)
+    q1 = np.array([np.sin(np.pi/4), 0.0, 0.0, np.cos(np.pi/4)], dtype=float)
     #q2 = np.array([0.0, np.sin(np.pi/12), 0.0, np.cos(np.pi/12)], dtype=float)
     qI = np.array([0.0, 0.0, 0.0, 1.0], dtype=float)
 
@@ -369,12 +371,19 @@ print(sol.success, sol.message)
 print("t shape:", t.shape, "S shape:", S.shape)  # S should be (len(t), 7n)
 
 def forward_kinematics_points(quats_xyzw, link_vecs, n=None):
+    """
+    quats_xyzw: sequence of quaternions (n,4) or flat array length 4*n
+    link_vecs: sequence of n link vectors (3,) in each hinge's local frame
+    n: optional number of links to use (defaults to len(quats))
+
+    returns points array shape (n+1,3): base + n joints/ends
+    """
     quats = np.asarray(quats_xyzw)
+    # accept flat or (n,4)
     if quats.ndim == 1:
         if quats.size % 4 != 0:
             raise ValueError("quats_xyzw must have length multiple of 4 when flat")
         quats = quats.reshape(-1, 4)
-
     if n is None:
         n = quats.shape[0]
     else:
@@ -385,16 +394,11 @@ def forward_kinematics_points(quats_xyzw, link_vecs, n=None):
         raise ValueError(f"link_vecs must have at least {n} entries")
 
     pts = [np.zeros(3)]
-    R_n_to_inetial = np.eye(3)  # maps vectors from frame k -> inertial/world
+    R = np.eye(3)
 
-    for k in range(n - 1, -1, -1):
-        # link k vector is expressed in frame k, so rotate it into world:
-        # update orientation for next frame:
-        R_k_to_kp1 = quat_to_rotmat(quats[k])     # your convention: k -> k+1
-        R_n_to_inetial = R_n_to_inetial @ R_k_to_kp1.T              # now maps (k+1) -> inertial
-        pts.append(pts[-1] + R_n_to_inetial @ link_vecs[k])
-
-
+    for i in range(n):
+        R = R @ quat_to_rotmat(quats[i])     # accumulate orientation
+        pts.append(pts[-1] + R @ link_vecs[i])    # step along current local link
     return np.vstack(pts)
 
 def animate_chain(S, t=None, stride=1, n=None, link_vecs=None, smooth=True, target_fps=30, speed=30.0):
@@ -522,4 +526,3 @@ def animate_chain(S, t=None, stride=1, n=None, link_vecs=None, smooth=True, targ
     plt.show()
     return ani
 ani = animate_chain(S, t=t, stride=2, n=n)
-
