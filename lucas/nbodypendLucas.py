@@ -333,13 +333,13 @@ def build_system_data(
 def make_initial_state(n):
     # first quaternion: your existing one (30° about x)
     q1 = np.array([np.sin(np.pi/12), 0.0, 0.0, np.cos(np.pi/12)], dtype=float)
-    #q2 = np.array([0.0, np.sin(np.pi/12), 0.0, np.cos(np.pi/12)], dtype=float)
+    q2 = np.array([0.0, np.sin(np.pi/12), 0.0, np.cos(np.pi/12)], dtype=float)
     qI = np.array([0.0, 0.0, 0.0, 1.0], dtype=float)
 
     # stack n quaternions: first is q1, remaining are identity
     Q0 = np.tile(qI, n)          # length 4n
     Q0[0:4] = q1                 # overwrite first quaternion
-    #Q0[4:8] = q2                 # overwrite second quaternion
+    Q0[4:8] = q2                 # overwrite second quaternion
 
     # generalized velocities: 3 per body (spherical)
     Beta0 = np.zeros(3 * n, dtype=float)
@@ -384,20 +384,21 @@ def forward_kinematics_points(quats_xyzw, link_vecs, n=None):
     if len(link_vecs) < n:
         raise ValueError(f"link_vecs must have at least {n} entries")
 
-    pts = [np.zeros(3)]
-    R_n_to_inetial = np.eye(3)  # maps vectors from frame k -> inertial/world
+    # Compute endpoints: endpoint[i] is the position (3,) of hinge i in world frame.
+    endpoints = [np.zeros(3) for _ in range(n + 1)]
+    R_n_to_inertial = np.eye(3)  # current rotation mapping from frame (k+1) to inertial
 
+    # iterate backwards to accumulate transforms
     for k in range(n - 1, -1, -1):
-        # link k vector is expressed in frame k, so rotate it into world:
-        # update orientation for next frame:
-        R_k_to_kp1 = quat_to_rotmat(quats[k])     # your convention: k -> k+1
-        R_n_to_inetial = R_n_to_inetial @ R_k_to_kp1.T              # now maps (k+1) -> inertial
-        pts.append(pts[-1] + R_n_to_inetial @ link_vecs[k])
+        R_k_to_kp1 = quat_to_rotmat(quats[k])
+        R_n_to_inertial = R_n_to_inertial @ R_k_to_kp1
+        endpoints[k] = endpoints[k + 1] + (R_n_to_inertial @ link_vecs[k])
+
+    # return as (n+1,3) numpy array
+    return np.vstack(endpoints)
 
 
-    return np.vstack(pts)
-
-def animate_chain(S, t=None, stride=1, n=None, link_vecs=None, smooth=True, target_fps=30, speed=30.0):
+def animate_chain(S, t=None, stride=1, n=None, link_vecs=None, smooth=True, target_fps=30, speed=1.0):
     """
     S shape: (T, 7*n) expected for this n-link spherical-joint model (n quaternions + 3n omegas)
 
@@ -450,6 +451,12 @@ def animate_chain(S, t=None, stride=1, n=None, link_vecs=None, smooth=True, targ
         all_times = t_uniform
         all_pts = [forward_kinematics_points(quats_uniform[k], link_vecs, n=n) for k in range(n_frames)]
         all_pts = np.array(all_pts)
+        # ensure shape (F, n+1, 3)
+        if all_pts.ndim == 3 and all_pts.shape[2] == 3:
+            pass
+        else:
+            # try to convert object array of lists -> numeric array
+            all_pts = np.stack([np.asarray(p) for p in all_pts], axis=0)
         interval_ms = int(round(1000.0 / target_fps / float(speed)))
         interval_ms = max(1, interval_ms)
 
@@ -464,6 +471,11 @@ def animate_chain(S, t=None, stride=1, n=None, link_vecs=None, smooth=True, targ
             all_pts.append(pts)
             all_times.append(t_in[k] if t is not None else k)
         all_pts = np.array(all_pts)
+        # ensure numeric array shape (F, n+1, 3)
+        if all_pts.ndim == 3 and all_pts.shape[2] == 3:
+            pass
+        else:
+            all_pts = np.stack([np.asarray(p) for p in all_pts], axis=0)
         all_times = np.array(all_times)
         # choose interval from median dt and scale by speed
         if len(all_times) > 1:
