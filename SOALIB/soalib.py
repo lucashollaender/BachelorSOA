@@ -87,3 +87,4 @@ def quat_derivative(q, omega):
     ])
 
     return 0.5 * (Omega @ q)
+
