@@ -3,6 +3,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import pyquaternion as pq
 import scipy as sp
+from scipy.spatial.transform import Rotation as R
 import pandas as pd
 from matplotlib.animation import FuncAnimation
 import time
@@ -16,14 +17,27 @@ def skew(z):
         [-z[1],   z[0],  0.0]
     ])
 
+def q2R(q, n):
+    # Takes a quaternion vector [x, y, z, w] and returns an n x n matrix (3 or 6).
 
-def R6(R: np.ndarray):
-    R = np.asarray(R)
-    return np.block([
-        [R,            np.zeros((3, 3))],
-        [np.zeros((3, 3)), R]
-    ])
-
+    # Create rotation object from quaternion [x, y, z, w]
+    rot_matrix = R.from_quat(q).as_matrix()
+    
+    if n == 3:
+        return rot_matrix
+    
+    elif n == 6:
+        # Create a 3x3 zero matrix
+        z = np.zeros((3, 3))
+        # Stack blocks: [R, 0]
+        #               [0, R]
+        return np.block([
+            [rot_matrix, z],
+            [z, rot_matrix]
+        ])
+    
+    else:
+        raise ValueError("n must be 3 or 6")
 
 def skew6(z):
     z = np.asarray(z).reshape(6,)
@@ -73,16 +87,3 @@ def quat_derivative(q, omega):
     ])
 
     return 0.5 * (Omega @ q)
-
-
-def quat_to_rotmat(q):
-    """
-    Convert quaternion to rotation matrix.
-    Assumes q = [qx, qy, qz, qw]^T (vector part first, scalar last).
-    q: shape (4,)
-    returns R: shape (3, 3)
-    """
-
-    q = np.asarray(q).reshape(4,)
-    quat = pq.Quaternion(q[3], q[0], q[1], q[2])  # pq uses scalar first
-    return quat.rotation_matrix
