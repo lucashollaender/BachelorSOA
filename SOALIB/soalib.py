@@ -86,3 +86,18 @@ def quat_to_rotmat(q):
     q = np.asarray(q).reshape(4,)
     quat = pq.Quaternion(q[3], q[0], q[1], q[2])  # pq uses scalar first
     return quat.rotation_matrix
+
+
+def hinge_map(x):
+    """
+    Returns the hinge map (SOA) as a 3x6 matrix based on joint type.
+    """
+    if x == "spherical":
+        H = np.hstack((
+            np.zeros((3, 3)),
+            np.eye(3)
+        ))
+    else:
+        raise ValueError(f"Unknown joint type: {x}")
+
+    return H
