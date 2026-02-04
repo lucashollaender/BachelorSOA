@@ -97,12 +97,12 @@ def hinge_map(x):
     """
     if x == "spherical":
         H = np.hstack((
-            np.zeros((3, 3)),
-            np.eye(3)
+            np.eye(3),
+            np.zeros((3, 3))
         ))
 
     elif x == "fixed":
-        H = np.zeros((6, 6))
+        H = np.zeros((6, 0))
 
     elif x == "free":
         H = np.eye(6)
