@@ -106,14 +106,11 @@ def odefun(t, S, sys, n):
     # 3x3 Rotation matrices
     R = [sb.q2R(theta[i], 3) for i in range(n)]
 
-    # --- system data ---
-    H = sys["H"]
-    M = sys["M"]
-    L = sys["L"]
-
     # --- generalized accelerations ---
-    beta_dot, _, _ = ATBI(theta, beta, tau_list, H, M, L)
+    beta_dot, _, _ = ATBI(theta, beta, tau_list, sys)
 
+    beta_dot = np.asarray(beta_dot, dtype=float)
+    dS = np.concatenate([theta_dot, beta_dot.reshape(-1)])
     dS = np.concatenate([theta_dot, beta_dot.reshape(-1)])
 
     return dS
@@ -175,7 +172,7 @@ def scatter1_ATBI(theta, beta, sys):
     return V, a, b
 
 
-def ATBI(theta, beta, tau, H, M, L):
+def ATBI(theta, beta, tau, sys):
     """
     Docstring for ATBI
 
@@ -189,13 +186,18 @@ def ATBI(theta, beta, tau, H, M, L):
     # Define n from theta
     n = theta.shape[0]
     # Call scatter to get velocity, gyro and coriolis
-    V, a, b = scatter1_ATBI(theta, beta, tau, H, M, L)
+    V, a, b = scatter1_ATBI(theta, beta, sys)
+
+    # unpacking sys
+    H = sys["H"]
+    M = sys["M"]
+    L = sys["L"]
 
     # Computing the rotation from interial to body
     R_inertial = np.eye(6)
     Ri = [None] * n
     for k in range(n - 1, -1, -1):
-        R_inertial = R_inertial  @ sb.qrR[theta[k], 6]
+        R_inertial = R_inertial  @ sb.q2R(theta[k], 6)
         Ri[k] = R_inertial
 
     # initiate lists
@@ -210,7 +212,7 @@ def ATBI(theta, beta, tau, H, M, L):
     ])
 
     # Initiating child values
-    Pp_child = np.zeros(6, 6)
+    Pp_child = np.zeros((6, 6))
     xip_child = np.zeros(6)
 
     for k in range(n):
@@ -218,7 +220,7 @@ def ATBI(theta, beta, tau, H, M, L):
             Pk = M[k]
             xi = Pk @ a[k] + b[k]
         else:
-            X = phi(L[k - 1]) @ sb.q2R(theta[k-1], 6)
+            X = sb.phi(L[k - 1]) @ sb.q2R(theta[k-1], 6)
             Pk = X @ Pp_child @ X.T + M[k]
             xi = X @ xip_child + Pk @ a[k] + b[k]
 
@@ -239,7 +241,7 @@ def ATBI(theta, beta, tau, H, M, L):
     gamma = [None] * n
     alpha = [None] * n
 
-    alpha_parent = np.zeros(6, 1)
+    alpha_parent = np.zeros(6)
     for k in range(n - 1, -1, -1):
         q_rel = theta[k]
 
@@ -248,10 +250,10 @@ def ATBI(theta, beta, tau, H, M, L):
 
         # Getting the correct position vector
         # position vector rotated to child frame
-        L = sb.q2R(q_rel, 3).T @ L[k]
+        Lk = sb.q2R(q_rel, 3).T @ L[k]
 
         # Rigid body matrix
-        phi = sb.phi(L).T  # Transpose as we are dealing with velocities
+        phi = sb.phi(Lk).T  # Transpose as we are dealing with velocities
 
         # Last scatter sweep
         alpha_p[k] = phi @ cRp @ alpha_parent
