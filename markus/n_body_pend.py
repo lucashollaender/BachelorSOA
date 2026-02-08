@@ -3,25 +3,28 @@ from SOALIB import soalib as sb
 # Function defining initial conditions for the n-body pendulum
 
 
-def initial_condition(n):
+def initial_condition(n, angle_deg=90.0, axis=(0.0, 1.0, 0.0), beta0=None):
     """
-       Returns theta0 of size (4*n,) where each body has identity quaternion
-       meaning it is aligned with the world frame (x-axis points along +x).
+    angle_deg: rotation angle in degrees (90 makes links horizontal if default is -Z)
+    axis: rotation axis in WORLD frame, e.g. (0,1,0) for y-axis
+    beta0: optional initial generalized velocities, shape (n,3) or (3*n,)
+    """
+    ax = np.asarray(axis, dtype=float)
+    ax = ax / np.linalg.norm(ax)
 
-       Quaternion convention: [x, y, z, w]
-       """
+    ang = np.deg2rad(angle_deg)
+    s = np.sin(ang / 2.0)
+    c = np.cos(ang / 2.0)
 
-    # All hinges are spherical
-    # All hinges are initial positioned in the x-direction
-    # position
-    q = np.array([0, 0, 0, 1])
-    theta0 = np.tile(q, n)
+    # quaternion [x, y, z, w]
+    q = np.array([ax[0] * s, ax[1] * s, ax[2] * s, c], dtype=float)
 
-    # Velocity
-    # All hinges are 3 DOF
-    beta0 = np.zeros(3*n,)
+    theta0 = np.tile(q, n)  # (4*n,)
 
-    # state vector
+    if beta0 is None:
+        beta0 = np.zeros(3 * n)
+    else:
+        beta0 = np.asarray(beta0, dtype=float).reshape(3 * n)
 
     S0 = np.concatenate([theta0, beta0])
     return S0
@@ -159,7 +162,8 @@ def scatter1_ATBI(theta, beta, sys):
         V_k = phi @ cRp @ V_parent + HT @ beta_k
 
         # coriolis acc
-        a[k] = sb.skew6(V_k) @ HT @ beta_k
+        a[k] = sb.skew6(V_k) @ (HT @ beta_k) - \
+            sb.bar6(HT @ beta_k) @ (HT @ beta_k)
 
         # Gyroscopic
         M_k = sys["M"][k]
@@ -264,3 +268,22 @@ def ATBI(theta, beta, tau, sys):
         alpha_parent = alpha[k]
 
     return gamma, V, alpha
+
+# For plotting
+
+
+def joint_positions(theta_n4, sys):
+    """
+    theta_n4: (n,4) quaternions
+    returns: (n+1,3) joint positions in world frame
+    """
+    n = theta_n4.shape[0]
+    L = sys["L"]
+
+    p = np.zeros((n + 1, 3))  # base joint at origin
+
+    for k in range(n):
+        Rk = sb.q2R(theta_n4[k], 3)
+        p[k + 1] = p[k] + Rk @ np.asarray(L[k]).reshape(3,)
+
+    return p
