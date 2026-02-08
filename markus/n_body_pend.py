@@ -270,7 +270,7 @@ def ATBI(theta, beta, tau, sys):
 # For plotting
 
 
-def forward_kinematics_points(theta_n4, sys, transpose_rel=False):
+def forward_kinematics_points(theta_n4, sys):
     """
     Same formulation as your example:
       R_acc = R_acc @ R_k_to_kp1
@@ -295,10 +295,7 @@ def forward_kinematics_points(theta_n4, sys, transpose_rel=False):
 
     for k in range(n - 1, -1, -1):
         R_k_to_kp1 = sb.q2R(theta_n4[k], 3)   # 3x3 from SOALIB
-        if transpose_rel:
-            R_k_to_kp1 = R_k_to_kp1.T
-
-        R_acc = R_acc @ R_k_to_kp1
+        R_acc = R_acc @ R_k_to_kp1.T
         endpoints[k] = endpoints[k + 1] + \
             (R_acc @ np.asarray(link_vecs[k]).reshape(3,))
 

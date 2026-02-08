@@ -10,10 +10,10 @@ from scipy.integrate import solve_ivp
 from matplotlib.animation import FuncAnimation
 import time
 
-# -----------------------------
-# Settings you actually tweak
-# -----------------------------
-n = 4
+# Number of bodies
+n = 10
+base_angle_deg = 60
+step_deg = 20
 
 # Physical params
 link_vec = np.array([0.0, 0.0, -5.0])
@@ -23,8 +23,6 @@ mass = 1.0
 
 # Simulation time (physics)
 t0, tf = 0.0, 20.0
-base_angle_deg = 60
-step_deg = 20
 
 # Playback controls
 real_time_seconds = 20.0   # make the whole animation last ~10s on screen
@@ -34,11 +32,10 @@ target_frames = 600        # ~60 fps for 10s (lower = faster compile)
 rtol = 1e-6
 atol = 1e-8
 
-# -----------------------------
-# Build system + initial state
-# -----------------------------
+# Build the system data
 sys = nbp.build_system_data(n, link_vec, com_vec, J_diag, mass)
 
+# initial condition
 S0 = nbp.initial_condition(n, base_angle_deg, step_deg, axis=(0, 1, 0))
 print(S0[:4*n].reshape(n, 4))
 
@@ -63,7 +60,7 @@ p_hist = np.zeros((Nt, n + 1, 3))
 for i in range(Nt):
     theta = Y[i, :4*n].reshape(n, 4)
 
-    P = nbp.forward_kinematics_points(theta, sys, transpose_rel=True)
+    P = nbp.forward_kinematics_points(theta, sys)
 
     # Anchor base at origin
     P = P - P[-1]
