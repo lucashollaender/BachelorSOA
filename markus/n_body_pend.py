@@ -3,31 +3,29 @@ from SOALIB import soalib as sb
 # Function defining initial conditions for the n-body pendulum
 
 
-def initial_condition(n, angle_deg=90.0, axis=(0.0, 1.0, 0.0), beta0=None):
-    """
-    angle_deg: rotation angle in degrees (90 makes links horizontal if default is -Z)
-    axis: rotation axis in WORLD frame, e.g. (0,1,0) for y-axis
-    beta0: optional initial generalized velocities, shape (n,3) or (3*n,)
-    """
+def initial_condition(n, base_angle_deg=0.0, step_deg=0.0, axis=(0.0, 1.0, 0.0), beta0=None):
     ax = np.asarray(axis, dtype=float)
-    ax = ax / np.linalg.norm(ax)
+    ax /= np.linalg.norm(ax)
 
-    ang = np.deg2rad(angle_deg)
-    s = np.sin(ang / 2.0)
-    c = np.cos(ang / 2.0)
+    def quat_from_axis_angle(angle_deg):
+        ang = np.deg2rad(angle_deg)
+        s = np.sin(ang / 2.0)
+        c = np.cos(ang / 2.0)
+        # [x,y,z,w]
+        return np.array([ax[0]*s, ax[1]*s, ax[2]*s, c], dtype=float)
 
-    # quaternion [x, y, z, w]
-    q = np.array([ax[0] * s, ax[1] * s, ax[2] * s, c], dtype=float)
+    q_base = quat_from_axis_angle(base_angle_deg)   # joint n (base)
+    q_step = quat_from_axis_angle(step_deg)         # joints 1..n-1
 
-    theta0 = np.tile(q, n)  # (4*n,)
+    # tip=1 -> index 0, base=n -> index n-1
+    theta0 = np.concatenate([q_step] * (n - 1) + [q_base])
 
     if beta0 is None:
         beta0 = np.zeros(3 * n)
     else:
         beta0 = np.asarray(beta0, dtype=float).reshape(3 * n)
 
-    S0 = np.concatenate([theta0, beta0])
-    return S0
+    return np.concatenate([theta0, beta0])
 
 
 def build_system_data(n, link_vec, com_vec, J_diag, mass):
@@ -261,7 +259,7 @@ def ATBI(theta, beta, tau, sys):
 
         # Last scatter sweep
         alpha_p[k] = phi @ cRp @ alpha_parent
-        nu_bar[k] = nu[k] - G[k].T @ (Ri[k].T @ g)
+        nu_bar[k] = nu[k] - (G[k].T @ (Ri[k].T @ g))
         gamma[k] = nu_bar[k] - G[k].T @ alpha_p[k]
         alpha[k] = alpha_p[k] + H[k].T @ gamma[k] + a[k]
 
@@ -272,18 +270,36 @@ def ATBI(theta, beta, tau, sys):
 # For plotting
 
 
-def joint_positions(theta_n4, sys):
+def forward_kinematics_points(theta_n4, sys, transpose_rel=False):
     """
-    theta_n4: (n,4) quaternions
-    returns: (n+1,3) joint positions in world frame
+    Same formulation as your example:
+      R_acc = R_acc @ R_k_to_kp1
+      endpoints[k] = endpoints[k+1] + R_acc @ link_vec[k]
+
+    theta_n4: (n,4) quaternions [x,y,z,w]
+    sys["L"]: list of link vectors (n of them), each (3,)
+
+    transpose_rel:
+      If True, uses R_k_to_kp1.T (helps if your chain appears mirrored)
     """
+    theta_n4 = np.asarray(theta_n4, dtype=float)
+    if theta_n4.ndim == 1:
+        theta_n4 = theta_n4.reshape(-1, 4)
+
     n = theta_n4.shape[0]
-    L = sys["L"]
+    link_vecs = sys["L"]
 
-    p = np.zeros((n + 1, 3))  # base joint at origin
+    endpoints = np.zeros((n + 1, 3))
+    # rotation mapping from frame (k+1) to inertial (as in your example)
+    R_acc = np.eye(3)
 
-    for k in range(n):
-        Rk = sb.q2R(theta_n4[k], 3)
-        p[k + 1] = p[k] + Rk @ np.asarray(L[k]).reshape(3,)
+    for k in range(n - 1, -1, -1):
+        R_k_to_kp1 = sb.q2R(theta_n4[k], 3)   # 3x3 from SOALIB
+        if transpose_rel:
+            R_k_to_kp1 = R_k_to_kp1.T
 
-    return p
+        R_acc = R_acc @ R_k_to_kp1
+        endpoints[k] = endpoints[k + 1] + \
+            (R_acc @ np.asarray(link_vecs[k]).reshape(3,))
+
+    return endpoints
