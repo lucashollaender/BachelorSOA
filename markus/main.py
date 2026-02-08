@@ -19,7 +19,3 @@ sys = nbp.build_system_data(n, link_vec, com_vec, J_diag, mass)
 
 S = nbp.initial_condition(n)
 print(S)
-
-Q, beta = nbp.unpack_state_blocks(S, n)
-
-print(beta[1])
