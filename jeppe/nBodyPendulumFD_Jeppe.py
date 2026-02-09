@@ -53,24 +53,23 @@ def EOM(S, n, klOO, klOC, Mk, H):
     Theta_dot = np.zeros((4*n, 1))
     Beta_dot = np.zeros((3*n, 1))
 
-    # Unpacking of S
-    Theta = S[0:4*n]
-    Beta = S[4*n:7*n]
+    # Unpacking of state, S
+    theta_vec = S[0:4*n]
+    beta_vec = S[4*n:7*n]
+
+    Theta = [theta_vec[i*4 : (i+1)*4].reshape(4, 1) for i in range(n)]
+    Beta = [beta_vec[i*3 : (i+1)*3].reshape(3, 1) for i in range(n)]
+
+    gamma, alpha = ATBI(Theta, Beta, klOO, klOC, Mk, H)
 
     for i in range(n):
-        q = Theta(S)
-        Theta_dot[i*4:i*4+4] = theta_dot()
-        Beta_dot[i*3:i*3+3] =
+        Theta_dot[i*4:i*4+4] = sb.quat_derivative(Theta[i], Beta[i])
+        Beta_dot[i*3:i*3+3] = gamma[i]
 
+    return np.stack((Theta_dot, Beta_dot)), alpha
 
-def theta_dot(theta, beta):
-    # Takes theta (4-element quaternion) and beta (3-element angular velocity)
-    # and returns theta_dot.
-
-    td = 0.5 * np.block([[-sb.skew(beta), beta], 
-                         [beta.T, 0]]) @ theta
+def ATBI(Theta, Beta, klOO, klOC, Mk, H):
     
-    return 
 
 """
 skew(z): Returns the 3x3 skew-symmetric matrix of a 3-vector (cross-product operator).
