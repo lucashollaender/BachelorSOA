@@ -11,9 +11,9 @@ from matplotlib.animation import FuncAnimation
 import time
 
 # Number of bodies
-n = 10
-base_angle_deg = 60
-step_deg = 20
+n = 5
+base_angle_deg = 90
+step_deg = 0
 
 # Physical params
 link_vec = np.array([0.0, 0.0, -5.0])

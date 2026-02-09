@@ -294,8 +294,8 @@ def forward_kinematics_points(theta_n4, sys):
     R_acc = np.eye(3)
 
     for k in range(n - 1, -1, -1):
-        R_k_to_kp1 = sb.q2R(theta_n4[k], 3)   # 3x3 from SOALIB
-        R_acc = R_acc @ R_k_to_kp1.T
+        pRc = sb.q2R(theta_n4[k], 3)   # 3x3 from SOALIB
+        R_acc = R_acc @ pRc.T
         endpoints[k] = endpoints[k + 1] + \
             (R_acc @ np.asarray(link_vecs[k]).reshape(3,))
 
