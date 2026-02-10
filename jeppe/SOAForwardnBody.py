@@ -7,6 +7,7 @@ from matplotlib.animation import FuncAnimation
 from scipy.spatial.transform import Rotation as Rot
 from SOALIB import soalib as sb
 from scipy.integrate import solve_ivp
+import os
 
 # Increase limit to 100 MB (default is 20)
 plt.rcParams['animation.embed_limit'] = 1000
@@ -422,10 +423,15 @@ def nBodySim(t, X, klOO, save_anim=False, filename="simulation.mp4"):
         print("Rendering animation to HTML... (This may take a minute)")
         
         # Use the 'html' writer
-        with open(filename, "w") as f:
+        save_dir = r"C:\Users\jepp6\OneDrive - Aarhus universitet\Dokumenter\Noter\6. Semester\Bachelor Projekt\BachelorCode\Renders"
+        os.makedirs(save_dir, exist_ok=True)
+
+        fullpath = os.path.join(save_dir, filename)
+
+        with open(fullpath, "w") as f:
             f.write(anim.to_jshtml())
             
-        print(f"Saved to {filename}")
+        print(f"Saved to {fullpath}")
 
     else:
         plt.show()
@@ -594,4 +600,4 @@ tf = 10
 dt = 0.01
 
 # Run program: nBodySOA(n, L, m, CkJk, S0, tau, tf, dt, SIM, filename)
-nBodySOA(n, theta0, beta0, L, m, CkJk, H_type, tau, F_ext, tf, dt, "Yes", "")
+nBodySOA(n, theta0, beta0, L, m, CkJk, H_type, tau, F_ext, tf, dt, "Yes", "123")
