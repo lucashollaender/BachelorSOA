@@ -3,28 +3,29 @@ from SOALIB import soalib as sb
 # Function defining initial conditions for the n-body pendulum
 
 
-def initial_condition(n):
-    """
-       Returns theta0 of size (4*n,) where each body has identity quaternion
-       meaning it is aligned with the world frame (x-axis points along +x).
+def initial_condition(n, base_angle_deg=0.0, step_deg=0.0, axis=(0.0, 1.0, 0.0), beta0=None):
+    ax = np.asarray(axis, dtype=float)
+    ax /= np.linalg.norm(ax)
 
-       Quaternion convention: [x, y, z, w]
-       """
+    def quat_from_axis_angle(angle_deg):
+        ang = np.deg2rad(angle_deg)
+        s = np.sin(ang / 2.0)
+        c = np.cos(ang / 2.0)
+        # [x,y,z,w]
+        return np.array([ax[0]*s, ax[1]*s, ax[2]*s, c], dtype=float)
 
-    # All hinges are spherical
-    # All hinges are initial positioned in the x-direction
-    # position
-    q = np.array([0, 0, 0, 1])
-    theta0 = np.tile(q, n)
+    q_base = quat_from_axis_angle(base_angle_deg)   # joint n (base)
+    q_step = quat_from_axis_angle(step_deg)         # joints 1..n-1
 
-    # Velocity
-    # All hinges are 3 DOF
-    beta0 = np.zeros(3*n,)
+    # tip=1 -> index 0, base=n -> index n-1
+    theta0 = np.concatenate([q_step] * (n - 1) + [q_base])
 
-    # state vector
+    if beta0 is None:
+        beta0 = np.zeros(3 * n)
+    else:
+        beta0 = np.asarray(beta0, dtype=float).reshape(3 * n)
 
-    S0 = np.concatenate([theta0, beta0])
-    return S0
+    return np.concatenate([theta0, beta0])
 
 
 def build_system_data(n, link_vec, com_vec, J_diag, mass):
@@ -106,14 +107,11 @@ def odefun(t, S, sys, n):
     # 3x3 Rotation matrices
     R = [sb.q2R(theta[i], 3) for i in range(n)]
 
-    # --- system data ---
-    H = sys["H"]
-    M = sys["M"]
-    L = sys["L"]
-
     # --- generalized accelerations ---
-    beta_dot, _, _ = ATBI(theta, beta, tau_list, H, M, L)
+    beta_dot, _, _ = ATBI(theta, beta, tau_list, sys)
 
+    beta_dot = np.asarray(beta_dot, dtype=float)
+    dS = np.concatenate([theta_dot, beta_dot.reshape(-1)])
     dS = np.concatenate([theta_dot, beta_dot.reshape(-1)])
 
     return dS
@@ -162,7 +160,8 @@ def scatter1_ATBI(theta, beta, sys):
         V_k = phi @ cRp @ V_parent + HT @ beta_k
 
         # coriolis acc
-        a[k] = sb.skew6(V_k) @ HT @ beta_k
+        a[k] = sb.skew6(V_k) @ (HT @ beta_k) - \
+            sb.bar6(HT @ beta_k) @ (HT @ beta_k)
 
         # Gyroscopic
         M_k = sys["M"][k]
@@ -175,7 +174,7 @@ def scatter1_ATBI(theta, beta, sys):
     return V, a, b
 
 
-def ATBI(theta, beta, tau, H, M, L):
+def ATBI(theta, beta, tau, sys):
     """
     Docstring for ATBI
 
@@ -189,13 +188,18 @@ def ATBI(theta, beta, tau, H, M, L):
     # Define n from theta
     n = theta.shape[0]
     # Call scatter to get velocity, gyro and coriolis
-    V, a, b = scatter1_ATBI(theta, beta, tau, H, M, L)
+    V, a, b = scatter1_ATBI(theta, beta, sys)
+
+    # unpacking sys
+    H = sys["H"]
+    M = sys["M"]
+    L = sys["L"]
 
     # Computing the rotation from interial to body
     R_inertial = np.eye(6)
     Ri = [None] * n
     for k in range(n - 1, -1, -1):
-        R_inertial = R_inertial  @ sb.qrR[theta[k], 6]
+        R_inertial = R_inertial  @ sb.q2R(theta[k], 6)
         Ri[k] = R_inertial
 
     # initiate lists
@@ -210,7 +214,7 @@ def ATBI(theta, beta, tau, H, M, L):
     ])
 
     # Initiating child values
-    Pp_child = np.zeros(6, 6)
+    Pp_child = np.zeros((6, 6))
     xip_child = np.zeros(6)
 
     for k in range(n):
@@ -218,7 +222,7 @@ def ATBI(theta, beta, tau, H, M, L):
             Pk = M[k]
             xi = Pk @ a[k] + b[k]
         else:
-            X = phi(L[k - 1]) @ sb.q2R(theta[k-1], 6)
+            X = sb.phi(L[k - 1]) @ sb.q2R(theta[k-1], 6)
             Pk = X @ Pp_child @ X.T + M[k]
             xi = X @ xip_child + Pk @ a[k] + b[k]
 
@@ -239,7 +243,7 @@ def ATBI(theta, beta, tau, H, M, L):
     gamma = [None] * n
     alpha = [None] * n
 
-    alpha_parent = np.zeros(6, 1)
+    alpha_parent = np.zeros(6)
     for k in range(n - 1, -1, -1):
         q_rel = theta[k]
 
@@ -248,17 +252,51 @@ def ATBI(theta, beta, tau, H, M, L):
 
         # Getting the correct position vector
         # position vector rotated to child frame
-        L = sb.q2R(q_rel, 3).T @ L[k]
+        Lk = sb.q2R(q_rel, 3).T @ L[k]
 
         # Rigid body matrix
-        phi = sb.phi(L).T  # Transpose as we are dealing with velocities
+        phi = sb.phi(Lk).T  # Transpose as we are dealing with velocities
 
         # Last scatter sweep
         alpha_p[k] = phi @ cRp @ alpha_parent
-        nu_bar[k] = nu[k] - G[k].T @ (Ri[k].T @ g)
+        nu_bar[k] = nu[k] - (G[k].T @ (Ri[k].T @ g))
         gamma[k] = nu_bar[k] - G[k].T @ alpha_p[k]
         alpha[k] = alpha_p[k] + H[k].T @ gamma[k] + a[k]
 
         alpha_parent = alpha[k]
 
     return gamma, V, alpha
+
+# For plotting
+
+
+def forward_kinematics_points(theta_n4, sys):
+    """
+    Same formulation as your example:
+      R_acc = R_acc @ R_k_to_kp1
+      endpoints[k] = endpoints[k+1] + R_acc @ link_vec[k]
+
+    theta_n4: (n,4) quaternions [x,y,z,w]
+    sys["L"]: list of link vectors (n of them), each (3,)
+
+    transpose_rel:
+      If True, uses R_k_to_kp1.T (helps if your chain appears mirrored)
+    """
+    theta_n4 = np.asarray(theta_n4, dtype=float)
+    if theta_n4.ndim == 1:
+        theta_n4 = theta_n4.reshape(-1, 4)
+
+    n = theta_n4.shape[0]
+    link_vecs = sys["L"]
+
+    endpoints = np.zeros((n + 1, 3))
+    # rotation mapping from frame (k+1) to inertial (as in your example)
+    R_acc = np.eye(3)
+
+    for k in range(n - 1, -1, -1):
+        pRc = sb.q2R(theta_n4[k], 3)   # 3x3 from SOALIB
+        R_acc = R_acc @ pRc.T
+        endpoints[k] = endpoints[k + 1] + \
+            (R_acc @ np.asarray(link_vecs[k]).reshape(3,))
+
+    return endpoints

@@ -348,7 +348,7 @@ def make_initial_state(n):
     S0 = np.concatenate([Q0, Beta0])   # length 7n
     return S0
 
-n = 2
+n = 4
 SystemData = build_system_data(n=n)
 
 S0 = make_initial_state(n)
