@@ -11,6 +11,9 @@ import copy
 import os
 import matplotlib as mpl
 
+# Increase limit to 100 MB (default is 20)
+plt.rcParams['animation.embed_limit'] = 1000
+
 class Joint:
 # Joint class with H_type, H and klOO
     def __init__(self, klOO, H_type: str):
@@ -551,7 +554,6 @@ H_type1 = "spherical"
 H_type2 = "spherical"
 H_type3 = "free"
 
-
 m = 1
 CkJk = np.array([0.1, 0.1, 1])
 klOC = np.array([0, 0, 2.5])
@@ -573,7 +575,7 @@ b2.set_initial_theta0(sb.get_quat_from_degrees(-25, 10, 0))
 q3 = sb.get_quat_from_degrees(-135, 10, 0).reshape(4, 1)
 v3 = np.array([0, 0, 5]).reshape(3, 1)
 theta03 = np.vstack([q3, v3])
-b1.set_initial_beta0(np.array([0, 0, 10]).reshape(3, 1))
+b1.set_initial_beta0(np.array([0, 0, 0]).reshape(3, 1))
 b3.set_initial_theta0(theta03)
 b3.set_initial_beta0(np.array([0, 0, 0, 0, 0, 0]).reshape(6, 1))
 
@@ -582,7 +584,7 @@ b3.set_initial_beta0(np.array([0, 0, 0, 0, 0, 0]).reshape(6, 1))
 #b1.set_tau(tau)
 #b1.set_F_ext(F_ext, klBO)
 
-bodies = [b1]
+bodies = [b2, b1]
 
 system = MultibodySystem(bodies)
 
