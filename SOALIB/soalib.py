@@ -102,19 +102,19 @@ def hinge_map(x):
         ))
 
     elif x == "fixed":
-        H = np.zeros((6, 0))
+        H = np.zeros((0, 6))
 
     elif x == "free":
         H = np.eye(6)
 
     elif x == "revx":
-        H = np.array([1, 0, 0, 0, 0, 0])
+        H = np.array([1, 0, 0, 0, 0, 0]).reshape(1, 6)
 
     elif x == "revy":
-        H = np.array([0, 1, 0, 0, 0, 0])
+        H = np.array([0, 1, 0, 0, 0, 0]).reshape(1, 6)
 
     elif x == "revz":
-        H = np.array([0, 0, 1, 0, 0, 0])
+        H = np.array([0, 0, 1, 0, 0, 0]).reshape(1, 6)
     else:
         raise ValueError(f"Unknown joint type: {x}")
 
