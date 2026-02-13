@@ -554,9 +554,9 @@ CkJk = [CkJk1, CkJk2, CkJk3, CkJk4]
 
 # Initial condition: Rotation: get_quat_from_degrees(x, y, z)
 theta01 = np.deg2rad(30)
-theta02 = np.deg2rad(75)
+theta02 = np.deg2rad(10)
 theta03 = np.zeros((0, 1))
-theta04 = get_quat_from_degrees(135, 0, 0)
+theta04 = get_quat_from_degrees(-135, 0, 0)
 
 theta0 = [theta01, theta02, theta03, theta04]
 
@@ -600,4 +600,4 @@ tf = 10
 dt = 0.01
 
 # Run program: nBodySOA(n, L, m, CkJk, S0, tau, tf, dt, SIM, filename)
-nBodySOA(n, theta0, beta0, L, m, CkJk, H_type, tau, F_ext, tf, dt, "Yes", "123")
+nBodySOA(n, theta0, beta0, L, m, CkJk, H_type, tau, F_ext, tf, dt, "Yes", "")
