@@ -119,3 +119,11 @@ def hinge_map(x):
         raise ValueError(f"Unknown joint type: {x}")
 
     return H
+
+def get_quat_from_degrees(x, y, z):
+    # Takes angles, x, y and z and returns quaternion
+
+    r = R.from_euler('xyz', [x, y, z], degrees=True)
+    q = np.array(r.as_quat()).reshape(4, 1)
+
+    return q

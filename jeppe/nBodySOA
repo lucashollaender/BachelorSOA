@@ -1,0 +1,366 @@
+import numpy as np
+import matplotlib.pyplot as plt
+import pyquaternion as pq
+import scipy as sp
+import pandas as pd
+from matplotlib.animation import FuncAnimation
+from scipy.spatial.transform import Rotation as Rot
+from SOALIB import soalib as sb
+from scipy.integrate import solve_ivp
+
+class Joint:
+# Joint class with H_type, H and klOO
+    def __init__(self, klOO, H_type: str):
+        # Parameters
+        self.type = H_type
+        self.H = sb.hinge_map(H_type)
+        self.klOO = klOO
+
+    # Unpacking size
+    def theta_size(self):
+        return {
+            "revx": 1,
+            "revy": 1,
+            "revz": 1,
+            "spherical": 4,
+            "free": 7,
+            "fixed": 0
+        }[self.type]
+
+    def beta_size(self):
+        return {
+            "revx": 1,
+            "revy": 1,
+            "revz": 1,
+            "spherical": 3,
+            "free": 6,
+            "fixed": 0
+        }[self.type]
+
+class Inertia:
+# Inertia class with m, CkJk and klOC
+    def __init__(self, m, CkJk, klOC):
+        # Parameters
+        self.m = m
+        self.CkJk = CkJk
+        self.klOC = klOC
+
+        # Spatial inertia
+        MC = np.block([
+            [np.diag(CkJk), np.zeros((3, 3))],
+            [np.zeros((3, 3)), m * np.eye(3)]
+        ])
+        self.Mk = sb.phi(klOC) @ MC @ sb.phi(klOC).T        
+
+class SOABody:
+# SOAbody class
+    class Force:
+        def __init__(self, joint: Joint):
+            self.tau = np.zeros((joint.beta_size(), 1))
+            self.F_ext = np.zeros((6, 1))
+        
+    class InitialCondition:
+        def __init__(self, joint: Joint):
+            # Setup of initial conditions (assumes identity rotation and no initial velocity)
+            self.theta0 = np.zeros((joint.theta_size(), 1))
+            if np.size(self.theta0) == 4:
+                self.theta0[-1] = 1
+            elif np.size(self.theta0) == 7:
+                self.theta0[3] = 1
+            self.beta0 = np.zeros((joint.beta_size(), 1))
+    
+    def __init__(self, joint: Joint, inertia: Inertia):
+        self.joint = joint
+        self.inertia = inertia
+        self.force = self.Force()
+        self.initialcondition = self.InitialCondition()
+    
+    def set_tau(self, tau):
+        self.force.tau = tau
+    
+    def set_F_ext(self, F_ext, klBO):
+        F = np.zeros((6, 1))
+        for i in range(len(F_ext)):
+            F = F + sb.phi(klBO[i]) @ F_ext[i]
+        self.force.sum_phi_F_ext = F
+
+    def set_initial_condition(self, theta0, beta0):
+        self.initialcondition.theta0 = theta0
+        self.initialcondition.beta0 = beta0
+
+class SystemState:
+# State of system class
+    def __init__(self, theta, beta):
+        # Parameters
+        self.Theta = theta
+        self.Beta = beta
+
+    # Packing of state, S: Two lists to column vector
+    def pack(self):
+        return np.vstack([*self.Theta, *self.Beta]).flatten()
+
+    # Unpacking of state, S: Column vector to two lists
+    @staticmethod
+    def unpack(S, joints):
+        S = S.flatten()
+        Theta, Beta = [], []
+        idx = 0
+
+        for k in joints:
+            sz = k.theta_size()
+            Theta.append(S[idx:idx + sz].reshape(sz, 1))
+            idx += sz
+
+        for k in joints:
+            sz = k.beta_size()
+            Beta.append(S[idx:idx + sz].reshape(sz, 1))
+            idx += sz
+
+        return SystemState(Theta, Beta)
+
+class ATBI:
+# ATBI class with bodies
+    def __init__(self, bodies):
+        # Parameters
+        self.bodies = bodies
+        self.n = len(bodies)
+
+    def coriolis(self, V, beta, H):
+        deltaV = H.T @ beta
+        return sb.skew6(V) @ deltaV - sb.bar6(deltaV) @ deltaV
+
+    def gyroscopic(self, V, M):
+        return sb.bar6(V) @ M @ V
+    
+    def theta2X(self, theta, joint_type, klOO):
+        if joint_type == "revx":
+            ang = theta.item()
+            q = np.array([[np.sin(ang/2)], [0], [0], [np.cos(ang/2)]])
+            return np.vstack((q, klOO))
+
+        elif joint_type == "revy":
+            ang = theta.item()
+            q = np.array([[0], [np.sin(ang/2)], [0], [np.cos(ang/2)]])
+            return np.vstack((q, klOO))
+
+        elif joint_type == "revz":
+            ang = theta.item()
+            q = np.array([[0], [0], [np.sin(ang/2)], [np.cos(ang/2)]])
+            return np.vstack((q, klOO))
+         
+        elif joint_type == "spherical":
+            q = theta.reshape(4, 1) / np.linalg.norm(q)
+            return np.vstack((q, klOO))
+
+        elif joint_type == "free":
+            q = theta[0:4].reshape(4, 1) / np.linalg.norm(q)
+            v = theta[4:7].reshape(3, 1)
+            return np.vstack((q, v))
+
+        elif joint_type == "fixed":
+            q = np.array([[0],[0],[0],[1]])
+            return np.vstack((q, klOO))
+
+    def scatter_kinematics(self, state: SystemState):
+        
+        # Number of bodies
+        n = self.n
+
+        # Set up lists
+        X = [None] * n
+        V = [None] * n
+        a = [None] * n
+        b = [None] * n
+
+        for k in reversed(range(self.n)):
+            # Parameters of the body
+            body = self.bodies[k]
+            theta = state.Theta[k]
+            beta = state.Beta[k]
+            H = body.joint.H
+            Mk = body.inertia.Mk
+
+            # Build X
+            X[k] = self.theta2X(theta, body.joint.type, body.klOO)
+            q = X[k][0:4]
+            
+            if k == self.n - 1:
+                V[k] = H.T @ beta
+            else:
+                R6 = sb.q2R(q.flatten(), 6)
+                V[k] = R6.T @ sb.phi(X[k]).T @ V[k+1] + H.T @ beta
+
+            a[k] = self.coriolis(V[k], beta, H)
+            b[k] = self.gyroscopic(V[k], Mk)    
+
+        return X, V, a, b
+        
+    def gather_ATBI(self, a, b, X):
+        # Step 3 of ATBI (gather sweep): Takes generalized forces, Coriolis-, gyroscopic
+        # terms, X-vector and system configuration and returns G and nu parameters
+
+        # Number of bodies
+        n = self.n
+
+        # Setup lists
+        P_plus = [None] * n
+        xi_plus = [None] * n
+        G = [None] * n
+        nu = [None] * n
+
+        for k in range(n):
+            # Parameters of the body
+            body = self.bodies[k]
+            H = body.joint.H
+            Mk = body.inertia.Mk
+            sum_phi_F_ext = body.forces.sum_phi_F_ext
+            tau = body.forces.tau
+
+            if k == 0:
+                # Gather loop for k = 0 (Base Case)
+                P = Mk
+                D = H @ P @ H.T
+                G[k] = (P @ H.T) @ np.linalg.inv(D)
+                tau_bar = np.eye(6) - G[k] @ H
+                P_plus[k] = tau_bar @ P
+                xi = P @ a[k] + b[k] - sum_phi_F_ext
+                epsilon = tau - H @ xi
+                nu[k] = np.linalg.solve(D, epsilon)
+                xi_plus[k] = xi + G[k] @ epsilon
+                
+            else:
+                # Unpacking X-vector
+                q = X[k-1][0:4]
+                klOO = X[k][4:7]
+
+                # Rotation
+                R6 = sb.q2R(q.flatten(), 6)
+                
+                # Gather loop for k > 0
+                P = sb.phi(klOO) @ R6 @ P_plus[k-1] @ R6.T @ sb.phi(klOO).T + Mk
+                D = H @ P @ H.T
+                G[k] = (P @ H.T) @ np.linalg.inv(D)
+                tau_bar = np.eye(6) - G[k] @ H
+                P_plus[k] = tau_bar @ P
+                xi = sb.phi(klOO) @ R6 @ xi_plus[k-1] + P @ a[k] + b[k] - sum_phi_F_ext
+                epsilon = tau - H @ xi
+                nu[k] = np.linalg.solve(D, epsilon)
+                xi_plus[k] = xi + G[k] @ epsilon
+
+        return G, nu
+
+    def scatter_ATBI(self, a, X, G, nu):
+        # Step 4 of ATBI (second scatter sweep): Takes Coriolis term, X-vector, G,
+        # nu and hinge map, H and returns generalized acceleration, gamma
+
+        # Number of bodies
+        n = self.n
+
+        # Setup of list
+        alpha = [None] * n
+        alpha_plus = [None] * n
+        gamma = [None] * n
+
+        # Spatial gravity
+        g = np.array([0, 0, 0, 0, 0, 9.81]).reshape(6, 1)
+        
+        # Spatial gravity rotation setup
+        Ri = [None] * (n + 1)
+        Ri[-1] = np.eye(6)
+
+        # Loop backwards from n-1 down to 0
+        for k in range(n - 1, -1, -1):
+            # Parameters of the body
+            body = self.bodies[k]
+            H = body.joint.H
+
+            # Unpacking rotation
+            q = X[k][0:4]
+
+            # Rotation
+            R6 = sb.q2R(q.flatten(), 6)
+
+            # Spatial gravity rotation
+            Ri[k] =   Ri[k+1]  @ R6
+
+            if k == n - 1:
+                # Scatter loop (Tip of the chain)
+                nu_bar = nu[k] - (G[k].T @ Ri[k].T @ g)
+                gamma[k] = nu_bar
+                alpha[k] = H.T @ gamma[k] + a[k]
+            
+            else:
+                # Hinge vector
+                klOO = X[k+1][4:7]
+            
+                # Scatter loop
+                alpha_plus[k] = R6.T @ sb.phi(klOO).T @ alpha[k+1]
+                nu_bar = nu[k] - (G[k].T @ Ri[k].T @ g)
+                gamma[k] = nu_bar - G[k].T @ alpha_plus[k]
+                alpha[k] = alpha_plus[k] + H.T @ gamma[k] + a[k]
+
+        return gamma, alpha
+
+class MultibodySystem:
+    def __init__(self, bodies):
+        self.bodies = bodies
+        self.ATBI = ATBI(bodies)
+
+    def EOM(self, t, S):
+            state = SystemState.unpack(S, [b.joint for b in self.bodies])
+            X, V, a, b = self.ATBI.scatter_kinematics(state)
+            G, nu = self.ATBI.gather_ATBI(a, b, X)
+            gamma, alpha = self.ATBI.scatter_ATBI(a, X, G, nu)
+
+            Theta_dot = []
+            for k, body in enumerate(self.bodies):
+                if body.joint.type.startswith("rev"):
+                    Theta_dot.append(state.Beta[k])
+                elif body.joint.type == "spherical":
+                    Theta_dot.append(sb.quat_derivative(state.Theta[k], state.Beta[k]))
+                elif body.joint.type == "free":
+                    qdot = sb.quat_derivative(state.Theta[k][0:4], state.Beta[k][0:3])
+                    Theta_dot.append(np.vstack([qdot, state.Beta[k][3:6]]))
+                else:
+                    Theta_dot.append(np.zeros((0,1)))
+
+            Sdot = np.vstack([*Theta_dot, *gamma]).flatten()
+            return Sdot
+
+class ForwardDynamics:
+    def __init__(self, system: MultibodySystem, tf, dt):
+        self.system = system
+        self.tf = tf
+        self.dt = dt
+
+    def IntegrateSystem(self):
+        t_eval = np.linspace(0, self.tf, int(self.tf/self.dt)+1)
+
+        S0 = np.vstack([*self.initialconditions.theta0, *self.initialconditions.beta0]).flatten()
+
+        sol = solve_ivp(
+            fun=self.system.EOM,
+            t_span=(0, self.tf),
+            y0=self.S0,
+            t_eval=t_eval
+        )
+
+        return sol.t, sol.y.T
+
+
+klOO = [0, 0, 5]
+H_type = "spherical"
+m = 1
+CkJk = 1
+klOC = [0, 0, 2.5]
+
+j1 = Joint(klOO, H_type)
+i1 = Inertia(m, CkJk, klOC)
+b1 = SOABody(j1, i1)
+b2 = b1
+
+b2.set_initial_condition()
+#b1.set_tau(tau)
+#b1.set_F_ext(F_ext, klBO)
+
+
