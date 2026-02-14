@@ -144,32 +144,30 @@ class ATBI:
         if joint_type == "revx":
             ang = theta.item()
             q = np.array([[np.sin(ang/2)], [0], [0], [np.cos(ang/2)]])
-            return np.vstack((q, klOO)), q, klOO
+            return np.vstack((q, klOO)), q
 
         elif joint_type == "revy":
             ang = theta.item()
             q = np.array([[0], [np.sin(ang/2)], [0], [np.cos(ang/2)]])
-            return np.vstack((q, klOO)), q, klOO
+            return np.vstack((q, klOO)), q
 
         elif joint_type == "revz":
             ang = theta.item()
             q = np.array([[0], [0], [np.sin(ang/2)], [np.cos(ang/2)]])
-            return np.vstack((q, klOO)), q, klOO
+            return np.vstack((q, klOO)), q
          
         elif joint_type == "spherical":
             q = theta.reshape(4, 1) 
-            q = q / np.linalg.norm(q)
-            return np.vstack((q, klOO)), q, klOO
+            return np.vstack((q, klOO)), q
 
         elif joint_type == "free":
             q = theta[0:4].reshape(4, 1) 
-            q = q / np.linalg.norm(q)
             v = theta[4:7].reshape(3, 1)
-            return np.vstack((q, v)), q, v
+            return np.vstack((q, v)), q
 
         elif joint_type == "fixed":
             q = np.array([[0],[0],[0],[1]])
-            return np.vstack((q, klOO)), q, klOO
+            return np.vstack((q, klOO)), q
 
     def scatter_kinematics(self, state: SystemState):
         
@@ -191,13 +189,13 @@ class ATBI:
             Mk = body.inertia.Mk
 
             # Build X
-            X[k], q, klOO = self.theta2X(theta, body.joint.type, body.joint.klOO)
+            X[k], q = self.theta2X(theta, body.joint.type, body.joint.klOO)
             
             if k == self.n - 1:
                 V[k] = H.T @ beta
             else:
                 R6 = sb.q2R(q.flatten(), 6)
-                V[k] = R6.T @ sb.phi(klOO).T @ V[k+1] + H.T @ beta
+                V[k] = R6.T @ sb.phi(X[k+1][4:7]).T @ V[k+1] + H.T @ beta
 
             a[k] = self.coriolis(V[k], beta, H)
             b[k] = self.gyroscopic(V[k], Mk)    
@@ -320,6 +318,13 @@ class MultibodySystem:
         
     def EOM(self, t, S):
             state = SystemState.unpack(S.reshape(-1, 1), [b.joint for b in self.bodies])
+
+            # Normalize quaternions
+            for k, body in enumerate(self.bodies):
+                if body.joint.type in ["spherical", "free"]:
+                    q = state.Theta[k][0:4]
+                    state.Theta[k][0:4] = q / np.linalg.norm(q)
+
             X, V, a, b = self.ATBI.scatter_kinematics(state)
             G, nu = self.ATBI.gather_ATBI(a, b, X)
             gamma, alpha = self.ATBI.scatter_ATBI(a, X, G, nu)
@@ -357,7 +362,8 @@ class Simulation:
             fun=self.system.EOM,
             t_span=(0, self.tf),
             y0=system.S0,
-            t_eval=t_eval
+            t_eval=t_eval,
+            method="RK45"
         )
 
         print("Integration successful!")
@@ -517,7 +523,7 @@ class Simulation:
             # Update timer
             time_text.set_text(f'Time: {t[frame_idx]:.2f} s')
 
-            ax.view_init(elev=20, azim=frame_idx * 0.15)
+            ax.view_init(elev=20, azim=frame_idx * 0.15*500*dt)
         
             return (*lines, joint_dots, time_text)
     
@@ -549,13 +555,15 @@ class Simulation:
         else:
             plt.show()
 
+#################### Body setup ####################
 klOO = np.array([0, 0, 5])
 H_type1 = "spherical"
-H_type2 = "spherical"
-H_type3 = "free"
+H_type2 = "free"
+H_type3 = "spherical"
+H_type4 = "free"
 
 m = 1
-CkJk = np.array([0.1, 0.1, 1])
+CkJk = np.array([1, 1, 0.1])
 klOC = np.array([0, 0, 2.5])
 
 j1 = Joint(klOO, H_type1)
@@ -570,25 +578,40 @@ j3 = Joint(klOO, H_type3)
 i = Inertia(m, CkJk, klOC)
 b3 = SOABody(j3, i)
 
-b1.set_initial_theta0(sb.get_quat_from_degrees(-135, 25, 0))
-b2.set_initial_theta0(sb.get_quat_from_degrees(-25, 10, 0))
-q3 = sb.get_quat_from_degrees(-135, 10, 0).reshape(4, 1)
-v3 = np.array([0, 0, 5]).reshape(3, 1)
-theta03 = np.vstack([q3, v3])
-b1.set_initial_beta0(np.array([0, 0, 0]).reshape(3, 1))
-b3.set_initial_theta0(theta03)
-b3.set_initial_beta0(np.array([0, 0, 0, 0, 0, 0]).reshape(6, 1))
+j4 = Joint(klOO, H_type4)
+i = Inertia(m, CkJk, klOC)
+b4 = SOABody(j4, i)
+
+b3.set_initial_theta0(sb.get_quat_from_degrees(-180, 0, 0))
+b1.set_initial_beta0(np.array([0, 0, 10]).reshape(3, 1))
+
+q2 = sb.get_quat_from_degrees(-180, 0, 0).reshape(4, 1)
+v2 = np.array([0, 0, 5]).reshape(3, 1)
+theta02 = np.vstack([q2, v2])
+b2.set_initial_theta0(theta02)
+b2.set_initial_beta0(np.array([0, 0, 0, 0, 0, 0]).reshape(6, 1))
 
 # set_initial_beta0 for "free" hinge body doesnt seem to work
 
-#b1.set_tau(tau)
-#b1.set_F_ext(F_ext, klBO)
+tau1 = np.array([0, 0, 0]).reshape(3, 1)
+b3.set_tau(tau1)
 
-bodies = [b2, b1]
+klBO1 = np.array([0, 0, 5])
+klBO2 = np.array([0, 0, 2.5])
+klBO = [klBO1, klBO2]
+
+F_ext1 = np.array([0, 0, 0, 0, 0, 0]).reshape(6, 1)
+F_ext2 = np.array([0, 0, 0, 0, 0, 0]).reshape(6, 1)
+
+F_ext = [F_ext1, F_ext2]
+
+b2.set_F_ext(F_ext, klBO)
+
+bodies = [b1, b2]
 
 system = MultibodySystem(bodies)
 
-tf = 5
+tf = 1
 dt = 0.01
 
 sim = Simulation(system, tf, dt)

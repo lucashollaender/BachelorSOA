@@ -254,7 +254,7 @@ def unpack_state(S, n, H_type):
             beta = np.array(S[x : x + 3]).reshape(3, 1)
             x = x + 3
         elif H_type[k] == "free":
-            beta = np.array(S[x : x + 7]).reshape(6, 1)
+            beta = np.array(S[x : x + 6]).reshape(6, 1)
             x = x + 6
         elif H_type[k] == "fixed":
             beta = np.zeros((0, 1))
@@ -406,7 +406,7 @@ def nBodySim(t, X, klOO, save_anim=False, filename="simulation.mp4"):
         # Update timer
         time_text.set_text(f'Time: {t[frame_idx]:.2f} s')
 
-        ax.view_init(elev=20, azim=frame_idx * 0.1)
+        ax.view_init(elev=20, azim=frame_idx * 0.15)
     
         return (*lines, joint_dots, time_text)
 
@@ -540,41 +540,43 @@ def nBodySOA(n, theta0, beta0, L, m, CkJk, H_type, tau, F_ext, tf, dt, SIM, file
     return t_out, y_out, X_list
 
 #################### Manual setup ####################
-n = 4                         # Number of bodies
-L = np.array([6, 4, 2, 4])    # Length of bodies
-m = np.array([2, 1, 1, 1])    # Mass of bodies
-H_type = ["revx", "revy", "fixed", "spherical"]
+n = 2                            # Number of bodies
+L = np.array([5, 5])#, 2, 4])    # Length of bodies
+m = np.array([1, 1])#, 1, 1])    # Mass of bodies
+H_type = ["spherical", "free"]#, "fixed", "spherical"]
 
 # Second moment of inertia of bodies
 CkJk1 = np.array([1, 1, 0.1])
 CkJk2 = np.array([1, 1, 0.1])
 CkJk3 = np.array([1, 1, 0.1])
 CkJk4 = np.array([1, 1, 0.1])
-CkJk = [CkJk1, CkJk2, CkJk3, CkJk4]
+CkJk = [CkJk1, CkJk2]#, CkJk3, CkJk4]
 
 # Initial condition: Rotation: get_quat_from_degrees(x, y, z)
-theta01 = np.deg2rad(30)
-theta02 = np.deg2rad(10)
+theta01 = get_quat_from_degrees(0, 0, 0)
+theta021 = get_quat_from_degrees(-180, 0, 0).reshape(-1, 1)
+theta022 = np.array([0, 0, 5]).reshape(-1, 1)
+theta02 = np.vstack([theta021, theta022])
 theta03 = np.zeros((0, 1))
 theta04 = get_quat_from_degrees(-135, 0, 0)
 
-theta0 = [theta01, theta02, theta03, theta04]
+theta0 = [theta01, theta02]#, theta03, theta04]
 
 # Initial condition: Angular velocity: get_quat_from_degrees(x, y, z)
-beta01 = np.array([0]).reshape(1, 1)
-beta02 = np.array([0]).reshape(1, 1)
+beta01 = np.array([3, 0, 0]).reshape(-1, 1)
+beta02 = np.array([0, 0, 0, 0, 0, 0]).reshape(-1, 1)
 beta03 = np.zeros((0, 1))
 beta04 = np.array([0, 0, 0]).reshape(3, 1)
 
-beta0 = [beta01, beta02, beta03, beta04]
+beta0 = [beta01, beta02]#, beta03, beta04]
 
 # Generalized forces
-tau1 = np.array([0]).reshape(1, 1)
-tau2 = np.array([0]).reshape(1, 1)
+tau1 = np.array([0, 0, 0]).reshape(-1, 1)
+tau2 = np.array([0, 0, 0, 0, 0, 0]).reshape(-1, 1)
 tau3 = np.zeros((0, 1))
 tau4 = np.array([0, 0, 0]).reshape(3, 1)
 
-tau = [tau1, tau2, tau3, tau4]
+tau = [tau1, tau2]#, tau3, tau4]
 
 # External forces F_ext = [klOO; F]
 klBO1 = np.array([0, 0, 6]).reshape(3, 1)
@@ -593,10 +595,10 @@ klBO4 = np.array([0, 0, 4]).reshape(3, 1)
 F4 = np.array([0, 0, 0, 0, 0, 0]).reshape(6, 1)
 F_ext4 = np.vstack((klBO4, F4))
 
-F_ext = [F_ext1, F_ext2, F_ext3, F_ext4]
+F_ext = [F_ext1, F_ext2]#, F_ext3, F_ext4]
 
 # Time
-tf = 10
+tf = 1
 dt = 0.01
 
 # Run program: nBodySOA(n, L, m, CkJk, S0, tau, tf, dt, SIM, filename)
