@@ -349,9 +349,16 @@ class Simulation:
         def __init__(self):
             self.time, self.state, self.X_list, self.V_list, self.a_list, self.b_list, self.alpha_list, self.pos = [], [], [], [], [], [], [], []
 
+    class Setting:
+        def __init__(self):
+            self.camera_speed = 0
+            self.camera_ver = 20
+            self.camera_hor = 0
+
     def __init__(self, system: MultibodySystem, tf, dt):
         self.system = system
         self.data = self.Data()
+        self.setting = self.Setting()
         self.tf = tf
         self.dt = dt
 
@@ -404,7 +411,17 @@ class Simulation:
         return self.data.b_list
     def get_alpha(self):
         return self.data.alpha_list
-    
+
+    # Settings    
+    def camera_speed(self, x):
+        self.setting.camera_speed = x
+
+    def camera_ver(self, x):
+        self.setting.camera_ver = x
+
+    def camera_hor(self, x):
+        self.setting.camera_hor = x
+
     def nBodyPos(self):
         # Takes time vector, t and X-vector [q, klOO]^T and returns hinge positions            
 
@@ -533,7 +550,7 @@ class Simulation:
             # Update timer
             time_text.set_text(f'Time: {t[frame_idx]:.2f} s')
 
-            ax.view_init(elev=20, azim=frame_idx * 0.15*200*dt)
+            ax.view_init(elev=self.setting.camera_ver, azim=frame_idx * self.setting.camera_speed * 40 * dt + self.setting.camera_hor)
         
             return (*lines, joint_dots, time_text)
     
@@ -603,13 +620,23 @@ class Simulation:
 """ ------ System Setup and Simulation ------ """ 
 # *** Multibody System ***
 # system = MultibodySystem(bodies)
-#       --->   bodies = [body_1, body_2, ..., body_n], list of bodies created above
+#       --->   bodies = [body_1, body_2, ..., body_n], list of bodies created above (tip: b_1 and base: b_n)
 
 # *** Simulation Setup ***
 # sim = Simulation(system, tf, dt)
 #       --->   system as created above
 #       --->   tf, length of simulation
 #       --->   dt, time step size
+
+""" ------ Camera Settings ------ """ 
+# sim.camera_speed(x)
+#       --->   x, number from -1..1 defining the speed in both directions
+
+# sim.camera_hor(x)
+#       --->   x, number from 0..360 defining the camera rotation around z-axis
+
+# sim.camera_ver(x)
+#       --->   x, number from -90..90 defining the camera rotation around x-axis
 
 """ ------ Parameter Call ------ """
 # *** Parameter Call ***   //   Get parameter for each body for each time step
@@ -620,17 +647,18 @@ class Simulation:
 # *** Animate ***
 # sim.animate()
 
-# *** Render Animation to HTML-file ***
+# *** Render Animation to HTML-file ***   // <file_name>, r<file_path> ---> strings
 # sim.animate(<file_name>, <file_path>)
 #       --->   <file_name>, name of the render file
 #       --->   <file_path>, copy the file path of the folder you want to save the HTML-file in.
-#               nb! You must add the letter <r> infront as: r"C:\Users\jepp6\OneDrive...
+#               nb! You must add the letter <r> in front of file path string as:
+#               file_path = r"C:\Users\jepp6\OneDrive..."
 #               Choose another folder than the GIT-Hub synchronize folder, since the file will
 #               be to big and result in a "commit" error.
 
 klOO = np.array([0, 0, 5])
 H_type1 = "spherical"
-H_type2 = "fixed"
+H_type2 = "spherical"
 H_type3 = "spherical"
 
 m = 1
@@ -649,31 +677,12 @@ j3 = Joint(klOO, H_type3)
 i = Inertia(m, CkJk, klOC)
 b3 = SOABody(j3, i)
 
-b3.set_initial_theta0(sb.get_quat_from_degrees(-135, 0, 0))
-b1.set_initial_beta0(np.array([0, 0, 0]).reshape(3, 1))
+b1.set_initial_theta0(sb.get_quat_from_degrees(10, -25, 0))
+b2.set_initial_theta0(sb.get_quat_from_degrees(-135, 0, 0))
 
-# For free hinge
-#q2 = sb.get_quat_from_degrees(-180, 0, 0).reshape(4, 1)
-#v2 = np.array([0, 0, 0]).reshape(3, 1)
-#theta02 = np.vstack([q2, v2])
+b1.set_initial_beta0(np.array([0, 0 , 0]).reshape(3, 1))
 
-b2.set_initial_theta0(sb.get_quat_from_degrees(-10, 20, 0))
-
-tau1 = np.array([0, 0, 0]).reshape(3, 1)
-b3.set_tau(tau1)
-
-klBO1 = np.array([0, 0, 5])
-klBO2 = np.array([0, 0, 2.5])
-klBO = [klBO1, klBO2]
-
-F_ext1 = np.array([0, 0, 0, 0, 0, 0]).reshape(6, 1)
-F_ext2 = np.array([0, 0, 0, 0, 0, 0]).reshape(6, 1)
-
-F_ext = [F_ext1, F_ext2]
-
-b2.set_F_ext(F_ext, klBO)
-
-bodies = [b1, b2, b3]
+bodies = [b1, b2]
 
 system = MultibodySystem(bodies)
 
@@ -682,13 +691,13 @@ dt = 0.01
 
 sim = Simulation(system, tf, dt)
 
+sim.camera_speed(0.1)
+
+
 sim.IntegrateSystem()
 
-# Parameter call: sim.get_<parameter>() [time, X, pos, V, alpha, a or b)
-# Animation call: sim.animate()
-# Render call: sim.animate(<file_name>, <file_path>)
-
-# Add r in front of file path to indicate raw string
 save_dir = r"C:\Users\jepp6\OneDrive - Aarhus universitet\Dokumenter\Noter\6. Semester\Bachelor Projekt\BachelorCode\Renders"
 
 sim.animate()
+
+#sim.animate("123", save_dir)
