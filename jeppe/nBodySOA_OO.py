@@ -163,7 +163,7 @@ class ATBI:
         elif joint_type == "free":
             q = theta[0:4].reshape(4, 1) 
             v = theta[4:7].reshape(3, 1)
-            return np.vstack((q, v)), q
+            return np.vstack((q, klOO)), q
 
         elif joint_type == "fixed":
             q = np.array([[0],[0],[0],[1]])
@@ -347,7 +347,7 @@ class MultibodySystem:
 class Simulation:
     class Data:
         def __init__(self):
-            self.time = self.X_list, self.V_list, self.a_list, self.b_list, self.alpha_list, self.pos = [], [], [], [], [], []
+            self.time, self.state, self.X_list, self.V_list, self.a_list, self.b_list, self.alpha_list, self.pos = [], [], [], [], [], [], [], []
 
     def __init__(self, system: MultibodySystem, tf, dt):
         self.system = system
@@ -370,27 +370,30 @@ class Simulation:
     
         # Extract results to match [t, y] format
         self.data.time = sol.t
-        y_out = sol.y.T
+        states = sol.y.T
 
         # Find X-vector for each time step
         for i in range(len(self.data.time)):
 
             # Unpack state            
-            state = SystemState.unpack(y_out[i].reshape(-1, 1), [b.joint for b in self.system.bodies])
+            current_state = SystemState.unpack(states[i].reshape(-1, 1), [b.joint for b in self.system.bodies])
             
             # Kinematic scatter loop to find X
-            X, V, a, b = self.system.ATBI.scatter_kinematics(state)
+            X, V, a, b = self.system.ATBI.scatter_kinematics(current_state)
             G, nu = self.system.ATBI.gather_ATBI(a, b, X)
             gamma, alpha = self.system.ATBI.scatter_ATBI(a, X, G, nu)
 
             # Add to list
+            self.data.state.append(current_state)
             self.data.X_list.append(X)
             self.data.V_list.append(V)
             self.data.a_list.append(a)
             self.data.b_list.append(b)
             self.data.alpha_list.append(alpha)
-    
+
     # Call functions for data
+    def get_state(self):
+        return self.data.state
     def get_X(self):
         return self.data.X_list
     def get_V(self):
@@ -403,8 +406,8 @@ class Simulation:
         return self.data.alpha_list
     
     def nBodyPos(self):
-        # Takes time vector, t and X-vector [q, klOO]^T and returns hinge positions
-    
+        # Takes time vector, t and X-vector [q, klOO]^T and returns hinge positions            
+
         t = self.data.time
         X = self.data.X_list
         klOO_B = [b.joint.klOO for b in self.system.bodies]
@@ -416,7 +419,13 @@ class Simulation:
         # Setup hinge position list
         penPos = []
 
+        dxyz = np.zeros((3, 1))
+
         for i in range(nt):
+            # Account for possible free BASE hinge
+            if  self.system.bodies[-1].joint.type == "free":
+                theta_base_free = self.data.state[i].Theta[-1]
+                dxyz = theta_base_free[4:7]
 
             kpos = [None] * (n + 1)
 
@@ -442,6 +451,7 @@ class Simulation:
             kpos[-1] = kpos[-2] - R_base @ klOO_B[-1]
 
             # Add to pendulum position list, penPos
+            kpos = kpos - dxyz
             penPos.append(kpos)
 
         return penPos
@@ -450,7 +460,7 @@ class Simulation:
         self.data.pos = self.nBodyPos()
         return self.data.pos
 
-    def animate(self, filename=""):
+    def animate(self, filename="", save_dir =""):
         # Takes X-vector list and returns simulation
         
         t = self.data.time
@@ -523,7 +533,7 @@ class Simulation:
             # Update timer
             time_text.set_text(f'Time: {t[frame_idx]:.2f} s')
 
-            ax.view_init(elev=20, azim=frame_idx * 0.15*500*dt)
+            ax.view_init(elev=20, azim=frame_idx * 0.15*200*dt)
         
             return (*lines, joint_dots, time_text)
     
@@ -541,7 +551,6 @@ class Simulation:
             filename = filename + ".html"
 
             # Use the 'html' writer
-            save_dir = r"C:\Users\jepp6\OneDrive - Aarhus universitet\Dokumenter\Noter\6. Semester\Bachelor Projekt\BachelorCode\Renders"
             os.makedirs(save_dir, exist_ok=True)
 
             fullpath = os.path.join(save_dir, filename)
@@ -555,12 +564,74 @@ class Simulation:
         else:
             plt.show()
 
-#################### Body setup ####################
+""" ------ Body setup ------ """
+# *** Body Parameters ****
+# klOO:     Hinge position (row vector)
+# H_type:   Hinge type (string)
+# m:        Mass (scalar)
+# CkJk:     Inertia (row vector)
+# klOC:     COM position (row vector)
+
+# *** Create Body ***
+# joint = Joint(<klOO>, <H_type>)
+# inertia = Inertia(<m>, <CkJk>, <klOC>)
+# body = SOABody(<joint>, <inertia>)
+
+""" ------ Body Attributes ------ """ 
+# If not specified program assumes zero column vectors
+# theta0, beta0, tau, F_ext ---> column vectors
+
+# *** Initial condition ***
+# body.set_initial_theta0(<theta0>)   //   <theta0> ---> column vector
+#       --->   "revx/y/z" use: theta0 = np.deg2rad(theta_x/y/z)
+#       --->   "spherical" use: theta0 = q0 = sb.get_quat_from_degrees(theta_x, theta_y, theta_z)
+#       --->   "free" use: theta0 = np.vstack([q0, l]), where l is the initial linear displacement (l = [l_x, l_y, l_z])
+#       --->   "fixed" use: theta0 cannot be specified
+# body.set_initial_beta0(<beta0>)   //   <beta0> ---> column vector 
+#       --->   "revx/y/z" use: beta0 = omega_x/y/z
+#       --->   "spherical" use: beta0 = np.array([omega_x, omega_y, omega_z]).reshape(3, 1)
+#       --->   "free" use: beta0 = np.array([omega_x, omega_y, omega_z, v_x, v_y, v_z]), where v is the initial linear velocity (v = [v_x, v_y, v_z])
+#       --->   "fixed" use: beta0 cannot be specified
+
+# *** Forces ***
+# body.set_tau(<tau>)   //   <tau> ---> column vector, np.array([<tau>]).reshape(nDOF, 1)
+
+# body.set_F_ext(<F_ext>, <klBO>)   //   <F_ext>, <klBO> ---> lists of same length 
+#       --->   F_ext is a list of column vectors (6, 1) with external forces
+#       --->   klBO is a list of row vectors (1, 3) with the external forces' appliying position
+
+""" ------ System Setup and Simulation ------ """ 
+# *** Multibody System ***
+# system = MultibodySystem(bodies)
+#       --->   bodies = [body_1, body_2, ..., body_n], list of bodies created above
+
+# *** Simulation Setup ***
+# sim = Simulation(system, tf, dt)
+#       --->   system as created above
+#       --->   tf, length of simulation
+#       --->   dt, time step size
+
+""" ------ Parameter Call ------ """
+# *** Parameter Call ***   //   Get parameter for each body for each time step
+# sim.get_<parameter>()
+#       --->   <parameter> = [state, X, pos, V, alpha, a, b]
+
+""" ------ Animate or Render Animation ------ """
+# *** Animate ***
+# sim.animate()
+
+# *** Render Animation to HTML-file ***
+# sim.animate(<file_name>, <file_path>)
+#       --->   <file_name>, name of the render file
+#       --->   <file_path>, copy the file path of the folder you want to save the HTML-file in.
+#               nb! You must add the letter <r> infront as: r"C:\Users\jepp6\OneDrive...
+#               Choose another folder than the GIT-Hub synchronize folder, since the file will
+#               be to big and result in a "commit" error.
+
 klOO = np.array([0, 0, 5])
 H_type1 = "spherical"
-H_type2 = "free"
+H_type2 = "fixed"
 H_type3 = "spherical"
-H_type4 = "free"
 
 m = 1
 CkJk = np.array([1, 1, 0.1])
@@ -578,20 +649,15 @@ j3 = Joint(klOO, H_type3)
 i = Inertia(m, CkJk, klOC)
 b3 = SOABody(j3, i)
 
-j4 = Joint(klOO, H_type4)
-i = Inertia(m, CkJk, klOC)
-b4 = SOABody(j4, i)
+b3.set_initial_theta0(sb.get_quat_from_degrees(-135, 0, 0))
+b1.set_initial_beta0(np.array([0, 0, 0]).reshape(3, 1))
 
-b3.set_initial_theta0(sb.get_quat_from_degrees(-180, 0, 0))
-b1.set_initial_beta0(np.array([0, 0, 10]).reshape(3, 1))
+# For free hinge
+#q2 = sb.get_quat_from_degrees(-180, 0, 0).reshape(4, 1)
+#v2 = np.array([0, 0, 0]).reshape(3, 1)
+#theta02 = np.vstack([q2, v2])
 
-q2 = sb.get_quat_from_degrees(-180, 0, 0).reshape(4, 1)
-v2 = np.array([0, 0, 5]).reshape(3, 1)
-theta02 = np.vstack([q2, v2])
-b2.set_initial_theta0(theta02)
-b2.set_initial_beta0(np.array([0, 0, 0, 0, 0, 0]).reshape(6, 1))
-
-# set_initial_beta0 for "free" hinge body doesnt seem to work
+b2.set_initial_theta0(sb.get_quat_from_degrees(-10, 20, 0))
 
 tau1 = np.array([0, 0, 0]).reshape(3, 1)
 b3.set_tau(tau1)
@@ -607,11 +673,11 @@ F_ext = [F_ext1, F_ext2]
 
 b2.set_F_ext(F_ext, klBO)
 
-bodies = [b1, b2]
+bodies = [b1, b2, b3]
 
 system = MultibodySystem(bodies)
 
-tf = 1
+tf = 10
 dt = 0.01
 
 sim = Simulation(system, tf, dt)
@@ -620,6 +686,9 @@ sim.IntegrateSystem()
 
 # Parameter call: sim.get_<parameter>() [time, X, pos, V, alpha, a or b)
 # Animation call: sim.animate()
-# Render call: sim.animate(<filename>)
+# Render call: sim.animate(<file_name>, <file_path>)
+
+# Add r in front of file path to indicate raw string
+save_dir = r"C:\Users\jepp6\OneDrive - Aarhus universitet\Dokumenter\Noter\6. Semester\Bachelor Projekt\BachelorCode\Renders"
 
 sim.animate()
