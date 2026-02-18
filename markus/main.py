@@ -11,7 +11,7 @@ from matplotlib.animation import FuncAnimation
 import time
 
 # Number of bodies
-n = 5
+n = 9
 base_angle_deg = 90
 step_deg = 0
 
