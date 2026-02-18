@@ -102,7 +102,7 @@ def hinge_map(x):
         ))
 
     elif x == "fixed":
-        H = np.zeros((6, 0))
+        H = np.zeros((0, 6))
 
     elif x == "free":
         H = np.eye(6)
