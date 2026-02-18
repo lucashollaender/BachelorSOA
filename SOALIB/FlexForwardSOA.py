@@ -184,28 +184,40 @@ class ATBI:
         # Set up lists
         X = [None] * n
         V = [None] * n
-        a = [None] * n
-        b = [None] * n
+        V_f = [None] * n
+        V_r = [None] * n
+        a_r = [None] * n
+        b_f = [None] * n
+        b_r = [None] * n
 
-        for k in reversed(range(self.n)):
+        for k in reversed(range(n)):
             # Parameters of the body
             body = self.bodies[k]
             theta = state.Theta[k]
             beta = state.Beta[k]
+            eta_dot = state.Eta_dot[k]
             H = body.joint.H
             Mk = body.inertia.Mk
+            PI = body.flex.PI
+
+            A = np.vstack([PI.T, ])
 
             # Build X
             X[k], q = self.theta2X(theta, body.joint.type, body.joint.klOO)
             
-            if k == self.n - 1:
-                V[k] = H.T @ beta
+            if k == n - 1:
+                V_f[k] = eta_dot
+                V_r[k] = H.T @ beta - PI @ eta_dot
             else:
-                R6 = sb.q2R(q.flatten(), 6)
-                V[k] = R6.T @ sb.phi(X[k+1][4:7]).T @ V[k+1] + H.T @ beta
+                R6 = sb.q2R(q.flatten(), 6)                
+
+                V_f[k] = eta_dot
+                V_r[k] = R6.T @ A[k+1].T @ V[k+1] + H.T @ beta - PI @ eta_dot
 
             a[k] = self.coriolis(V[k], beta, H)
-            b[k] = self.gyroscopic(V[k], Mk)    
+            b[k] = self.gyroscopic(V[k], Mk)
+
+            V[k] = np.vstack([V_f[k], V_r[k]])
 
         return X, V, a, b
         
