@@ -12,3 +12,5 @@ G = 120 * 1e9
 k = sb.get_stiff_mat_rect_3D(h, w, L, E, G)
 
 print(k)
+
+print(np.size(k))

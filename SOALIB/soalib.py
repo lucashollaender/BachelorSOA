@@ -188,4 +188,3 @@ def get_stiff_mat_rect_3D(h, w, L, E, G):
     k_perm = k[np.ix_(perm, perm)]
 
     return k_perm
-
