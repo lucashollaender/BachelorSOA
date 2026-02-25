@@ -60,15 +60,17 @@ class Inertia:
         self.Mk = sb.phi(klOC) @ MC @ sb.phi(klOC).T        
 
 class Flex:
-    def __init__(self, PI, E, G, rho, n_nd):
+    def __init__(self, PI, E, G, rho, n_nd, n_md):
         self.PI = PI
         self.E = E
         self.G = G
         self.rho = rho
         self.n_nd = n_nd
+        self.n_md = n_md
         self.n_elem = self.n_nd - 1
         self.K_st = [None]
         self.M_nd = [None]
+        self.PI = [None]
     
     def set_PI(self, PI):
         self.PI = PI
@@ -93,7 +95,7 @@ class SOABody:
     def get_K_st(self):
         
         # Get nodal stiffness
-        k = sb.get_stiff_mat_rect_3D(self.h, self.w, np.len(self.joint.klOO), self.flex.E, self.flex.G)
+        k = sb.get_stiff_mat_rect_3D(self.h, self.w, self.L, self.flex.E, self.flex.G)
 
         # Global stiffness matrix setup
         K_st = np.zeros((6*self.flex.n_nd, 6*self.flex.n_nd))
@@ -107,7 +109,7 @@ class SOABody:
     
     def get_M_nd(self):
         L_elem = self.L / self.flex.n_elem
-        m_e = self.flex.rho * self.A * self.flex.L_elem
+        m_e = self.flex.rho * self.A * L_elem
 
         m = np.full(self.flex.n_nd, m_e)
         m[-1], m[0] = m_e / 2, m_e / 2
@@ -124,9 +126,10 @@ class SOABody:
     def get_PI(self):
 
         # Fixed BC
-        K_st = self.flex.K_st[6:-1, 6:-1]
-        M_nd = self.flex.M_nd[6:-1, 6:-1]
+        K_st = self.flex.K_st[6:, 6:]
+        M_nd = self.flex.M_nd[6:, 6:]
 
+        # Rearranging of M and K
         index = np.zeros((0, 1))
 
         for i in range(self.flex.n_elem):
@@ -137,11 +140,35 @@ class SOABody:
             index_add = np.linspace(i * 6, i * 6 + 3, 3).reshape(1, 3)
             index = np.hstack([index, index_add])
 
-        k = self.flex.K_st
+        K = K_st[np.ix_(index, index)]
+        M = M_nd[np.ix_(index, index)]
+
+        # Find K_tt, K_rr, K_tr, K_rt and M_c
+        sz = np.len(M)
+
+        K_tt = K[0:sz/2, 0:sz/2]
+        K_rr = K[sz/2:sz, sz/2:sz]
+        K_tr = K[0:sz/2, sz/2:sz]
+        K_rt = K[sz/2:sz, 0:sz/2]
+
+        M_c = M[0:sz/2, 0:sz/2]
+
+        # Find K_e
+        K_rr_inv = np.linalg.inv(K_rr)
+        K_e = K_tt - K_tr @ K_rr_inv @ K_rt
+
+        # Solve eigenvalue problem for Pi_t
+        eigval, PI_t = la.eigh(K_e, M_c, subset_by_index = (0, self.flex.n_md - 1))
+
+        PI_r = - K_rr_inv @ K_rt @ PI_t
+
+        # Pi setup
+        PI = np.zeros((PI_t.shape[1], 2 * PI_t.shape[0] + 6))
+        for i in range(self.flex.n_elem):
+            PI[i * 6 + 6:i * 6 + 9, :] = PI_r[i * 3:i * 3 + 3, :]
+            PI[i * 6 + 9:i * 6 + 12, :] = PI_t[i * 3:i * 3 + 3, :]
         
-
-        k = k[np.ix_(index, index)]
-
+        return PI
 
     def __init__(self, joint: Joint, inertia: Inertia, flex: Flex, h, w):
         self.joint = joint
@@ -152,10 +179,19 @@ class SOABody:
         self.h = h
         self.w = w
         self.A = h * w
+        self.L = np.linalg.norm(self.joint.klOO)
 
-        # Stiffnes and mass matrix
+        # Intermidiate stiffness and mass matrix
         self.flex.K_st = self.get_K_st(self)
         self.flex.M_nd = self.get_M_nd(self)
+
+        # PI
+        if self.flex.PI == [None]:
+            self.flex.PI = self.get_PI()
+
+        # Stiffness and mass matrix
+        
+
     
     def set_tau(self, tau):
         self.force.tau = tau
