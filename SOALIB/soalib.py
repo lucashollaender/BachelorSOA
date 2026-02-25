@@ -171,7 +171,7 @@ def get_stiff_mat_rect_3D(h, w, L, E, G):
     diag = [None] * 6
 
     diag[0] = np.array([Z, X_1, Y_1, S, Y_3, X_3, Z, X_1, Y_1, S, Y_3, X_3])
-    diag[1] = np.array([0, 0, -Y_2, 0, 0, -X_2, 0, 0, Y_2])
+    diag[1] = np.array([0, 0, -Y_2, 0, 0, -X_2, 0, 0, Y_2, 0])
     diag[2] = np.array([0, X_2, 0, 0, Y_2, 0, 0, -X_2])
     diag[3] = np.array([-Z, -X_1, -Y_1, -S, Y_4, X_4])
     diag[4] = np.array([0, 0, -Y_2, 0])
