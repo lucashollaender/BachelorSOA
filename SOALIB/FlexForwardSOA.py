@@ -2,6 +2,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import pyquaternion as pq
 import scipy as sp
+import scipy.linalg as la
 import pandas as pd
 from matplotlib.animation import FuncAnimation
 from scipy.spatial.transform import Rotation as Rot
@@ -65,6 +66,12 @@ class Flex:
         self.G = G
         self.rho = rho
         self.n_nd = n_nd
+        self.n_elem = self.n_nd - 1
+        self.K_st = [None]
+        self.M_nd = [None]
+    
+    def set_PI(self, PI):
+        self.PI = PI
 
 class SOABody:
 # SOAbody class
@@ -99,11 +106,41 @@ class SOABody:
         return K_st
     
     def get_M_nd(self):
-        self.flex.m_e = self.flex.rho * self.A * self.flex.L_elem
+        L_elem = self.L / self.flex.n_elem
+        m_e = self.flex.rho * self.A * self.flex.L_elem
 
-        m = np.full(self.flex.n_nd, self.flex.m_e)
-        m[-1], m[0] = self.flex.m_e / 2, self.flex.m_e / 2
+        m = np.full(self.flex.n_nd, m_e)
+        m[-1], m[0] = m_e / 2, m_e / 2
+
+        block = []
+        for i in range(self.flex.n_nd):
+            block.append(np.zeros((3, 3)))
+            block.append(m[i]*np.eye((3, 3)))
         
+        M = la.block_diag(*block)
+
+        return M
+    
+    def get_PI(self):
+
+        # Fixed BC
+        K_st = self.flex.K_st[6:-1, 6:-1]
+        M_nd = self.flex.M_nd[6:-1, 6:-1]
+
+        index = np.zeros((0, 1))
+
+        for i in range(self.flex.n_elem):
+            index_add = np.linspace(i * 6 + 3, i * 6 + 6, 3).reshape(1, 3)
+            index = np.hstack([index, index_add])
+
+        for i in range(self.flex.n_elem):
+            index_add = np.linspace(i * 6, i * 6 + 3, 3).reshape(1, 3)
+            index = np.hstack([index, index_add])
+
+        k = self.flex.K_st
+        
+
+        k = k[np.ix_(index, index)]
 
 
     def __init__(self, joint: Joint, inertia: Inertia, flex: Flex, h, w):
@@ -115,9 +152,6 @@ class SOABody:
         self.h = h
         self.w = w
         self.A = h * w
-        self.flex.n_elem = self.flex.n_nd - 1
-        self.L = np.len(self.joint.klOO)
-        self.flex.L_elem = self.L / self.flex.n_elem
 
         # Stiffnes and mass matrix
         self.flex.K_st = self.get_K_st(self)
