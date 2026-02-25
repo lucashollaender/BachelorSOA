@@ -127,3 +127,65 @@ def get_quat_from_degrees(x, y, z):
     q = np.array(r.as_quat()).reshape(4, 1)
 
     return q
+
+def get_stiff_mat_rect_3D(h, w, L, E, G):
+    
+    # h > w
+    a = w
+    b = h
+
+    # Book -> code
+    # x -> z
+    # y -> x
+    # z -> y
+
+    # Rectangular cross-section
+    k_x = 1.2
+    k_y = k_x
+    K = a * b**3 * (16/3 - 3.36 * a / b * (1 - a**4 / (12 * b**4)))
+    A = h*w
+    I_x = w * h**3 / 12
+    I_y = h * w**3 / 12
+
+    # Factors
+    phi_x = 12 * E * I_y * k_x / (A * G * L**2)
+    phi_y = 12 * E * I_x * k_y / (A * G * L**2)
+    S = G * K / L
+
+    # Z    
+    Z = A * E / L
+
+    # X
+    X_1 = 12 * E * I_y / ((1 + phi_x) * L**3)
+    X_2 = 6 * E * I_y / ((1 + phi_x) * L**2)
+    X_3 = (4 + phi_x) * E * I_y / ((1 + phi_x) * L)
+    X_4 = (2 - phi_x) * E * I_y / ((1 + phi_x) * L)
+
+    # Y
+    Y_1 = 12 * E * I_x / ((1 + phi_y) * L**3)
+    Y_2 = 6 * E * I_x / ((1 + phi_y) * L**2)
+    Y_3 = (4 + phi_y) * E * I_x / ((1 + phi_y) * L)
+    Y_4 = (2 - phi_y) * E * I_x / ((1 + phi_y) * L)
+
+    # Stiffness matrix
+    diag = [None] * 6
+
+    diag[0] = np.array([Z, X_1, Y_1, S, Y_3, X_3, Z, X_1, Y_1, S, Y_3, X_3])
+    diag[1] = np.array([0, 0, -Y_2, 0, 0, -X_2, 0, 0, Y_2, 0])
+    diag[2] = np.array([0, X_2, 0, 0, Y_2, 0, 0, -X_2])
+    diag[3] = np.array([-Z, -X_1, -Y_1, -S, Y_4, X_4])
+    diag[4] = np.array([0, 0, -Y_2, 0])
+    diag[5] = np.array([0, X_2])
+
+    k = np.diag(diag[0], k=0)
+
+    for i in range(1, 6):
+        k = k + np.diag(diag[i], k=-2*i) + np.diag(diag[i], k=2*i)
+    
+    # Change so rotations first is along
+    perm = [3, 4, 5, 0, 1, 2, 9, 10, 11, 6, 7, 8]
+    
+    k_perm = k[np.ix_(perm, perm)]
+
+    return k_perm
+
