@@ -188,3 +188,11 @@ def get_stiff_mat_rect_3D(h, w, L, E, G):
     k_perm = k[np.ix_(perm, perm)]
 
     return k_perm
+
+def get_A(PI, klOO):
+    return np.vstack([PI[-6:, :].T, phi(klOO)])
+
+def get_R_tot(R6, n_md):
+    rw1 = np.hstack([np.eye(n_md, n_md), np.zeros((n_md, 6))])
+    rw2 = np.hstack([np.zeros((6, n_md)), R6])
+    return  np.vstack([rw1, rw2])

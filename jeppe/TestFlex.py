@@ -13,7 +13,7 @@ klOC = np.array([0, 0, 2.5])
 E, G, rho, n_nd, n_md = 230e9, 80e9, 7850, 4, 7
 
 h = 0.1
-w = 0.1
+w = 0.3
 
 j1 = Joint(klOO, H_type1)
 i = Inertia(m, CkJk, klOC)
