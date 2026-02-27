@@ -2,7 +2,6 @@ import numpy as np
 import matplotlib.pyplot as plt
 import pyquaternion as pq
 import scipy as sp
-import scipy.linalg as la
 import pandas as pd
 from matplotlib.animation import FuncAnimation
 from scipy.spatial.transform import Rotation as Rot
@@ -60,20 +59,10 @@ class Inertia:
         self.Mk = sb.phi(klOC) @ MC @ sb.phi(klOC).T        
 
 class Flex:
-    def __init__(self, PI, E, G, rho, n_nd, n_md):
+    def __init__(self, PI, M_fl, R_st):
         self.PI = PI
-        self.E = E
-        self.G = G
-        self.rho = rho
-        self.n_nd = n_nd
-        self.n_md = n_md
-        self.n_elem = self.n_nd - 1
-        self.K_st = [None]
-        self.M_nd = [None]
-        self.PI = [None]
-    
-    def set_PI(self, PI):
-        self.PI = PI
+        self.M_fl = M_fl
+        self.R_st = R_st
 
 class SOABody:
 # SOAbody class
@@ -92,106 +81,12 @@ class SOABody:
                 self.theta0[3] = 1
             self.beta0 = np.zeros((joint.beta_size(), 1))
     
-    def get_K_st(self):
-        
-        # Get nodal stiffness
-        k = sb.get_stiff_mat_rect_3D(self.h, self.w, self.L, self.flex.E, self.flex.G)
-
-        # Global stiffness matrix setup
-        K_st = np.zeros((6*self.flex.n_nd, 6*self.flex.n_nd))
-
-        for i in range(self.flex.n_nd - 1):
-            k_i = np.zeros((6*self.flex.n_nd, 6*self.flex.n_nd))
-            k_i[i*6:i*6+12, i*6:i*6+12] = k
-            K_st = K_st + k_i
-        
-        return K_st
-    
-    def get_M_nd(self):
-        L_elem = self.L / self.flex.n_elem
-        m_e = self.flex.rho * self.A * L_elem
-
-        m = np.full(self.flex.n_nd, m_e)
-        m[-1], m[0] = m_e / 2, m_e / 2
-
-        block = []
-        for i in range(self.flex.n_nd):
-            block.append(np.zeros((3, 3)))
-            block.append(m[i]*np.eye((3, 3)))
-        
-        M = la.block_diag(*block)
-
-        return M
-    
-    def get_PI(self):
-
-        # Fixed BC
-        K_st = self.flex.K_st[6:, 6:]
-        M_nd = self.flex.M_nd[6:, 6:]
-
-        # Rearranging of M and K
-        index = np.zeros((0, 1))
-
-        for i in range(self.flex.n_elem):
-            index_add = np.linspace(i * 6 + 3, i * 6 + 6, 3).reshape(1, 3)
-            index = np.hstack([index, index_add])
-
-        for i in range(self.flex.n_elem):
-            index_add = np.linspace(i * 6, i * 6 + 3, 3).reshape(1, 3)
-            index = np.hstack([index, index_add])
-
-        K = K_st[np.ix_(index, index)]
-        M = M_nd[np.ix_(index, index)]
-
-        # Find K_tt, K_rr, K_tr, K_rt and M_c
-        sz = np.len(M)
-
-        K_tt = K[0:sz/2, 0:sz/2]
-        K_rr = K[sz/2:sz, sz/2:sz]
-        K_tr = K[0:sz/2, sz/2:sz]
-        K_rt = K[sz/2:sz, 0:sz/2]
-
-        M_c = M[0:sz/2, 0:sz/2]
-
-        # Find K_e
-        K_rr_inv = np.linalg.inv(K_rr)
-        K_e = K_tt - K_tr @ K_rr_inv @ K_rt
-
-        # Solve eigenvalue problem for Pi_t
-        eigval, PI_t = la.eigh(K_e, M_c, subset_by_index = (0, self.flex.n_md - 1))
-
-        PI_r = - K_rr_inv @ K_rt @ PI_t
-
-        # Pi setup
-        PI = np.zeros((PI_t.shape[1], 2 * PI_t.shape[0] + 6))
-        for i in range(self.flex.n_elem):
-            PI[i * 6 + 6:i * 6 + 9, :] = PI_r[i * 3:i * 3 + 3, :]
-            PI[i * 6 + 9:i * 6 + 12, :] = PI_t[i * 3:i * 3 + 3, :]
-        
-        return PI
-
-    def __init__(self, joint: Joint, inertia: Inertia, flex: Flex, h, w):
+    def __init__(self, joint: Joint, inertia: Inertia, flex: Flex):
         self.joint = joint
         self.inertia = inertia
         self.flex = flex
         self.force = self.Force(self.joint)
         self.initialcondition = self.InitialCondition(self.joint)
-        self.h = h
-        self.w = w
-        self.A = h * w
-        self.L = np.linalg.norm(self.joint.klOO)
-
-        # Intermidiate stiffness and mass matrix
-        self.flex.K_st = self.get_K_st(self)
-        self.flex.M_nd = self.get_M_nd(self)
-
-        # PI
-        if self.flex.PI == [None]:
-            self.flex.PI = self.get_PI()
-
-        # Stiffness and mass matrix
-        
-
     
     def set_tau(self, tau):
         self.force.tau = tau
@@ -303,29 +198,27 @@ class ATBI:
             eta_dot = state.Eta_dot[k]
             H = body.joint.H
             Mk = body.inertia.Mk
-            PI = body.flex.PI
-            K = body.flex.K
-            M = body.flex.M
-
-            A = np.vstack([PI.T, ])
+            PI = body.flex.PI 
 
             # Build X
             X[k], q = self.theta2X(theta, body.joint.type, body.joint.klOO)
-            
+            A = np.vstack([PI.T, sb.phi(X[k][4:7])]) #
+
             if k == n - 1:
                 V_f[k] = eta_dot
-                V_r[k] = H.T @ beta - PI @ eta_dot
+                V_r[k] = H.T @ beta
             else:
                 R6 = sb.q2R(q.flatten(), 6)                
-
                 V_f[k] = eta_dot
-                V_r[k] = R6.T @ A[k+1].T @ V[k+1] + H.T @ beta - PI @ eta_dot
+                V_r[k] = R6.T @ A[k+1].T @ V[k+1] + H.T @ beta
 
+            # From 13.25 we can compute V_nd. From 
+            """"
             a[k] = self.coriolis(V[k], beta, H)
             b[k] = self.gyroscopic(V[k], Mk)
 
             V[k] = np.vstack([V_f[k], V_r[k]])
-
+            """
         return X, V, a, b
         
     def gather_ATBI(self, a, b, X):
@@ -365,7 +258,7 @@ class ATBI:
                 # Unpacking X-vector
                 q = X[k-1][0:4]
                 klOO = X[k][4:7]
-
+ 
                 # Rotation
                 R6 = sb.q2R(q.flatten(), 6)
                 
