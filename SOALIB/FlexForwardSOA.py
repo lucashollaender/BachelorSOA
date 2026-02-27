@@ -60,17 +60,28 @@ class Inertia:
         self.Mk = sb.phi(klOC) @ MC @ sb.phi(klOC).T        
 
 class Flex:
-    def __init__(self, PI, E, G, rho, n_nd, n_md):
-        self.PI = PI
+    def __init__(self, E, G, rho, n_nd, n_md):
         self.E = E
         self.G = G
         self.rho = rho
         self.n_nd = n_nd
         self.n_md = n_md
         self.n_elem = self.n_nd - 1
+        self.L_elem = [None]
+        self.m_nd = [None]
         self.K_st = [None]
         self.M_nd = [None]
+        self.K = [None]
+        self.M = [None]
+        self.eigval = [None]
+        self.PI_r = [None]
+        self.PI_t = [None]
         self.PI = [None]
+        self.p_0 = [None]
+        self.CkJk_0 = [None]
+        self.F_0 = [None]
+        self.E_0 = [None]
+        self.G_0 = [None]
     
     def set_PI(self, PI):
         self.PI = PI
@@ -108,16 +119,21 @@ class SOABody:
         return K_st
     
     def get_M_nd(self):
+        # Nodal masses
         L_elem = self.L / self.flex.n_elem
         m_e = self.flex.rho * self.A * L_elem
 
         m = np.full(self.flex.n_nd, m_e)
         m[-1], m[0] = m_e / 2, m_e / 2
 
+        # Store nodal masses and lenghts
+        self.flex.m_nd = m
+        self.flex.L_elem = L_elem
+
         block = []
         for i in range(self.flex.n_nd):
             block.append(np.zeros((3, 3)))
-            block.append(m[i]*np.eye((3, 3)))
+            block.append(m[i] * np.eye(3, 3))
         
         M = la.block_diag(*block)
 
@@ -130,45 +146,126 @@ class SOABody:
         M_nd = self.flex.M_nd[6:, 6:]
 
         # Rearranging of M and K
-        index = np.zeros((0, 1))
+        index = np.zeros((1, 0))
 
         for i in range(self.flex.n_elem):
-            index_add = np.linspace(i * 6 + 3, i * 6 + 6, 3).reshape(1, 3)
+            index_add = np.linspace(i * 6 + 3, i * 6 + 5, 3).reshape(1, 3)
             index = np.hstack([index, index_add])
 
         for i in range(self.flex.n_elem):
-            index_add = np.linspace(i * 6, i * 6 + 3, 3).reshape(1, 3)
+            index_add = np.linspace(i * 6, i * 6 + 2, 3).reshape(1, 3)
             index = np.hstack([index, index_add])
 
+        index = index.flatten().astype(int)
         K = K_st[np.ix_(index, index)]
         M = M_nd[np.ix_(index, index)]
 
         # Find K_tt, K_rr, K_tr, K_rt and M_c
-        sz = np.len(M)
+        sz = M.shape[0]
+        sz2 = int(sz / 2)
 
-        K_tt = K[0:sz/2, 0:sz/2]
-        K_rr = K[sz/2:sz, sz/2:sz]
-        K_tr = K[0:sz/2, sz/2:sz]
-        K_rt = K[sz/2:sz, 0:sz/2]
+        K_tt = K[0:sz2, 0:sz2]
+        K_rr = K[sz2:sz, sz2:sz]
+        K_tr = K[0:sz2, sz2:sz]
+        K_rt = K[sz2:sz, 0:sz2]
+        
+        M_c = M[0:sz2, 0:sz2]
 
-        M_c = M[0:sz/2, 0:sz/2]
+        # Find K_e (np.linalg.inv(K_rr) * K_rt)
+        X = la.solve(K_rr, K_rt, assume_a = "sym")
+        K_c = K_tt - K_tr @ X
 
-        # Find K_e
-        K_rr_inv = np.linalg.inv(K_rr)
-        K_e = K_tt - K_tr @ K_rr_inv @ K_rt
+        print(np.linalg.norm(M_c))
+        print(np.linalg.norm(K_c))
 
-        # Solve eigenvalue problem for Pi_t
-        eigval, PI_t = la.eigh(K_e, M_c, subset_by_index = (0, self.flex.n_md - 1))
+        # Solve eigenvalue problem for Pi_t (Mass normalized!)
+        eigval, PI_t = la.eigh(K_c, M_c, subset_by_index = (0, self.flex.n_md - 1))
 
-        PI_r = - K_rr_inv @ K_rt @ PI_t
+        # Store eigen values
+        self.flex.eigval = eigval
 
-        # Pi setup
-        PI = np.zeros((PI_t.shape[1], 2 * PI_t.shape[0] + 6))
+        # Compute rotational part of PI
+        PI_r = - X @ PI_t
+
+        # Store PI_r and PI_t for modal integrals
+        self.flex.PI_r = np.vstack([np.zeros((3, self.flex.n_md)), PI_r])
+        self.flex.PI_t = np.vstack([np.zeros((3, self.flex.n_md)), PI_t])
+
+        # PI setup
+        PI = np.zeros((2 * PI_t.shape[0] + 6, PI_t.shape[1]))
         for i in range(self.flex.n_elem):
             PI[i * 6 + 6:i * 6 + 9, :] = PI_r[i * 3:i * 3 + 3, :]
             PI[i * 6 + 9:i * 6 + 12, :] = PI_t[i * 3:i * 3 + 3, :]
         
         return PI
+    
+    def get_Modal_Int(self):
+        # Parameters
+        m = self.m
+        m_nd = self.flex.m_nd.reshape(-1, 1)
+        L_elem = self.flex.L_elem
+        PI_r = self.flex.PI_r
+        n_md = self.flex.n_md
+        n_nd = self.flex.n_nd
+
+        # Initialize sums
+        p_0_sum = np.zeros((3, 1))
+        CkJk_0_sum = np.zeros((3, 3))
+        F_0_sum = np.zeros((3, n_md))
+        G_0_sum = np.zeros((n_md, n_md))
+        E_0_sum = F_0_sum
+
+        for i in range(n_nd):
+            # Parameters
+            klkO = np.array([0, 0, i * L_elem]).reshape(3, 1)
+            klkO_skew = sb.skew(klkO)
+
+            # Compute sums
+            p_0_sum += m_nd[i] * klkO
+
+            CkJk_0_sum += - m_nd[i] * klkO_skew @ klkO_skew
+            
+            for r in range(n_md):
+                F_0_sum[:, r] += m_nd[i] * klkO_skew @ PI_r[i * 3: i * 3 + 3, r]
+                E_0_sum[:, r] += m_nd[i] * PI_r[i * 3: i*3 + 3, r]
+
+                for s in range(n_md):
+                    G_0_sum[r, s] += m_nd[i] * PI_r[i * 3: i*3 + 3, r].T @ PI_r[i * 3: i*3 + 3, s]
+
+        # Store modal integrals
+        self.flex.p_0 = 1/m * p_0_sum
+        self.flex.CkJk_0 = CkJk_0_sum
+        self.flex.F_0 = F_0_sum
+        self.flex.G_0 = G_0_sum
+        self.flex.E_0 = E_0_sum
+
+        print("p_0")
+        print(pd.DataFrame(self.flex.p_0))
+        print("CkJk_0")
+        print(pd.DataFrame(self.flex.CkJk_0))
+        print("F_0")
+        print(pd.DataFrame(self.flex.F_0))
+        print("G_0")
+        print(pd.DataFrame(self.flex.G_0))
+        print("E_0")
+        print(pd.DataFrame(self.flex.E_0))
+
+    def get_M(self):
+        # Parameters
+        p_0_skew = sb.skew(self.flex.p_0)
+        CkJk_0 = self.flex.CkJk_0
+        F_0 = self.flex.F_0
+        G_0 = self.flex.G_0
+        E_0 = self.flex.E_0
+
+        m = self.inertia.m
+
+        # Build M
+        rw1 = np.hstack([G_0, F_0.T, E_0.T])
+        rw2 = np.hstack([F_0, CkJk_0, m * p_0_skew])
+        rw3 = np.hstack([E_0, -m * p_0_skew, m * np.eye(3)])
+
+        return np.vstack([rw1, rw2, rw3])
 
     def __init__(self, joint: Joint, inertia: Inertia, flex: Flex, h, w):
         self.joint = joint
@@ -180,18 +277,22 @@ class SOABody:
         self.w = w
         self.A = h * w
         self.L = np.linalg.norm(self.joint.klOO)
+        self.m = flex.rho * self.A * self.L
 
         # Intermidiate stiffness and mass matrix
-        self.flex.K_st = self.get_K_st(self)
-        self.flex.M_nd = self.get_M_nd(self)
+        self.flex.K_st = self.get_K_st()
+        self.flex.M_nd = self.get_M_nd()
 
         # PI
         if self.flex.PI == [None]:
             self.flex.PI = self.get_PI()
 
         # Stiffness and mass matrix
-        
+        self.flex.K = np.zeros((self.flex.n_md + 6, self.flex.n_md + 6))
+        self.flex.K[0:self.flex.n_md, 0:self.flex.n_md] = self.flex.PI.T @ self.flex.M_nd @ self.flex.PI
 
+        self.get_Modal_Int()
+        self.flex.M = self.get_M()
     
     def set_tau(self, tau):
         self.force.tau = tau
