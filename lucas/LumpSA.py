@@ -4,51 +4,12 @@ import scipy.linalg as la
 import pandas as pd
 from SOALIB import soalib as sb
 
-def assemble_1d_chain(K_e_list, conn, n_nodes):
-    """
-    Assemble global stiffness for a 1D chain.
-
-    K_e_list: list of 12x12 element stiffness matrices (one per element)
-    conn:     list of (node_i, node_j) connectivity using 1-based node numbers
-              e.g. [(1,2),(2,3),(3,4)]
-    """
-    ndof_per_node=6
-    ndof = n_nodes * ndof_per_node
-    K_global = np.zeros((ndof, ndof))
-
-    for e, (ni, nj) in enumerate(conn):
-        Ke = K_e_list[e]
-
-        # convert node numbers (1-based) to global dof indices (0-based)
-        dofs_i = list(range((ni-1)*ndof_per_node, ni*ndof_per_node))
-        dofs_j = list(range((nj-1)*ndof_per_node, nj*ndof_per_node))
-        edofs = dofs_i + dofs_j  # 12 dofs for this element
-
-        # assemble: add Ke into K_global at the edofs positions
-        for a in range(12):
-            A = edofs[a]
-            for b in range(12):
-                B = edofs[b]
-                K_global[A, B] += Ke[a, b]
-
-    return K_global
-
-
-def sym(A):
-    """Force exact symmetry (helps numerical stability)."""
-    return 0.5 * (A + A.T)
-
-# ============================================================
-# Eigen solve + recover full 6-DOF mode shapes
-# ============================================================
-def solve_condensed_eigen_reduced(Kred, Mred, nmodes=6, ndpn=6, rot_reg=0.0, mass_normalize=True):
+def solve_condensed_eigen_reduced(Kred, Mred, nmodes=6, ndpn=6, rot_reg=0.0, mass_normalize=False):
     """
     Solve eigenproblem from already-BC-reduced matrices (fixed DOFs removed).
     Condenses out rotations (massless) and recovers them.
     Returns gamma (translations), lambda_rot (rotations), and modes_red6 (full reduced 6DOF modes).
     """
-    Kred = sym(Kred)
-    Mred = sym(Mred)
 
     n = Kred.shape[0]
     red_dofs = np.arange(n)  # reduced system DOFs are 0..n-1
@@ -56,7 +17,6 @@ def solve_condensed_eigen_reduced(Kred, Mred, nmodes=6, ndpn=6, rot_reg=0.0, mas
     # translation vs rotation by position mod 6
     r_mask = np.array([(d % ndpn) in (0, 1, 2) for d in red_dofs], dtype=bool)
     t_mask = ~r_mask
-
     t_idx = np.where(t_mask)[0]
     r_idx = np.where(r_mask)[0]
 
@@ -66,13 +26,9 @@ def solve_condensed_eigen_reduced(Kred, Mred, nmodes=6, ndpn=6, rot_reg=0.0, mas
     Krr = Kred[np.ix_(r_idx, r_idx)]
     Mtt = Mred[np.ix_(t_idx, t_idx)]
 
-    if rot_reg and rot_reg > 0:
-        Krr = Krr + rot_reg * np.eye(Krr.shape[0])
-
     # Condense rotations
     X = la.solve(Krr, Krt, assume_a="sym")   # X = inv(Krr)*Krt
-    Kc = sym(Ktt - Ktr @ X)
-    Mtt = sym(Mtt)
+    Kc = Ktt - Ktr @ X
 
     # Solve condensed generalized EVP
     n_available = Kc.shape[0]
@@ -97,6 +53,7 @@ def solve_condensed_eigen_reduced(Kred, Mred, nmodes=6, ndpn=6, rot_reg=0.0, mas
             mi = modes_red6[:, i].T @ (Mred @ modes_red6[:, i])
             if mi > 0:
                 modes_red6[:, i] /= np.sqrt(mi)
+            
 
     return {
         "freq_hz": freq,
@@ -129,6 +86,18 @@ def mass_matrix_pointmass(nd,rho,A,L):
     M = la.block_diag(*blocks)
     return M
 
+def modalIntegrals_zero(nd,rho,A,L,gamma):
+    n_elms = nd - 1
+    L_e = L / n_elms
+    lkOkj = [i * L_e for i in range(nd)] 
+    m_e = rho * A * L_e
+    m = np.full(nd, m_e)
+    m[0]  = m_e / 2
+    m[-1] = m_e / 2
+    for i in range(nd):
+        sum_p0+=m[i]*lkOkj[i]
+        p0=1/m_e*sum_p0
+
 if __name__ == "__main__":
 
     # ----------------------------
@@ -144,35 +113,33 @@ if __name__ == "__main__":
     # ----------------------------
     # Build global K (24x24)
     # ----------------------------
-    E = 210e9
+    E = 230e9
     G = 80e9
-    h=0.5
-    w=0.5
-    J  = 5e-7
+    h=0.1
+    w=0.1
+    rho=7850
     L=5
     n_nd=4
     n_elms = n_nd - 1
     L_e = L / n_elms
-    M=mass_matrix_pointmass(n_nd,9000,h*w,L)
+    M=mass_matrix_pointmass(n_nd,rho,h*w,L)
     # element stiffness list (3 elements)
-    K_e_list = []
-    for e in range(n_nd-1):
-        Ke = sb.get_stiff_mat_rect_3D(h, w, L, E, G)
-        K_e_list.append(Ke)
+    k=sb.get_stiff_mat_rect_3D(h, w, L, E, G)   
+    # Global stiffness matrix setup
+    K_st = np.zeros((6*n_nd, 6*n_nd))
 
-    # connectivity for chain 1-2-3-4
-    conn = [(1, 2), (2, 3), (3, 4)]
+    for i in range(n_nd - 1):
+        k_i = np.zeros((6*n_nd, 6*n_nd))
+        k_i[i*6:i*6+12, i*6:i*6+12] = k
+        K_st = K_st + k_i
 
-    # Assemble global stiffness
-    K = assemble_1d_chain(K_e_list, conn, n_nd)
-
-    Kred = K[6:, 6:]
+    Kred = K_st[6:, 6:]
     Mred = M[6:, 6:]
 
-    results = solve_condensed_eigen_reduced(Kred, Mred, nmodes=6, ndpn=6)
+    results = solve_condensed_eigen_reduced(Kred, Mred, nmodes=7, ndpn=6)
 
     print("\nEigenvalues:")
-    df0 = pd.DataFrame(results["freq_hz"])
+    df0 = pd.DataFrame(results["omega2"])
     print(df0)
 
     print("\nTranslational mode shapes γ:")
