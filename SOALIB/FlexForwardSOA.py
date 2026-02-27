@@ -560,7 +560,6 @@ class ATBI:
             body = self.bodies[k]
             H_B = body.joint.H
             PI = body.flex.PI
-            n_md = body.flex.n_md
 
             # Unpacking rotation
             q = X[k][0:4]
@@ -581,9 +580,6 @@ class ATBI:
                 alpha_fl[k] = np.vstack([eta_ddot[k], alpha_pr])
             
             else:
-                # Hinge vector
-                klOO = X[k+1][4:7]
-            
                 # Scatter loop
                 alpha_pr_plus = A_fl[k+1].T @ R6 @ alpha_fl[k+1]
                 theta_ddot[k] = nu_pr[k] - G_pr[k].T @ alpha_pr_plus
