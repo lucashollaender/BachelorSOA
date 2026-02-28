@@ -11,6 +11,7 @@ from scipy.integrate import solve_ivp
 import copy
 import os
 import matplotlib as mpl
+from SOALIB.Structural_Analysis_PM_Rect import Structural_Analysis_PM_Rect
 
 # Increase limit to 100 MB (default is 20)
 plt.rcParams['animation.embed_limit'] = 1000
@@ -44,26 +45,34 @@ class Joint:
             "fixed": 0
         }[self.type]
 
-class Inertia:
+class Rigid_Properties:
 # Inertia class with m, CkJk and klOC
-    def __init__(self, m, CkJk, klOC):
+    def __init__(self, rho, CkJk, klOC):
         # Parameters
-        self.m = m
+        self.rho = rho
         self.CkJk = CkJk
         self.klOC = klOC.reshape(3, 1)
+        self.Mk = [None]
+        self.w = [None]
+        self.h = [None]
+        self.L = [None]
+    
+    def get_Mk(self, m):
+        klOC = self.klOC
+        CkJk = self.CkJk
 
-        # Spatial inertia
+        # Rigid spatial inertia
         MC = np.block([
             [np.diag(CkJk), np.zeros((3, 3))],
             [np.zeros((3, 3)), m * np.eye(3)]
         ])
-        self.Mk = sb.phi(klOC) @ MC @ sb.phi(klOC).T        
+        return sb.phi(klOC) @ MC @ sb.phi(klOC).T
 
-class Flex:
-    def __init__(self, E, G, rho, n_nd, n_md):
+
+class Flex_Properties:
+    def __init__(self, E, G, n_nd, n_md):
         self.E = E
         self.G = G
-        self.rho = rho
         self.n_nd = n_nd
         self.n_md = n_md
         self.n_elem = self.n_nd - 1
@@ -71,8 +80,8 @@ class Flex:
         self.m_nd = [None]
         self.K_st = [None]
         self.M_nd = [None]
-        self.K = [None]
-        self.M = [None]
+        self.K_fl = [None]
+        self.M_fl = [None]
         self.eigval = [None]
         self.PI_r = [None]
         self.PI_t = [None]
@@ -85,6 +94,12 @@ class Flex:
     
     def set_PI(self, PI):
         self.PI = PI
+    
+    def set_K_fl(self, K_fl):
+        self.K_fl = K_fl
+
+    def set_M_fl(self, M_fl):
+        self.M_fl = M_fl
 
 class SOABody:
 # SOAbody class
@@ -103,159 +118,47 @@ class SOABody:
                 self.theta0[3] = 1
             self.beta0 = np.zeros((joint.beta_size(), 1))
     
-    def get_K_st(self):
-        
-        # Get nodal stiffness
-        k = sb.get_stiff_mat_rect_3D(self.h, self.w, self.L, self.flex.E, self.flex.G)
+    def __init__(self, joint: Joint, rigid: Rigid_Properties, flex: Flex_Properties):
+        # Import classes
+        self.joint = joint
+        self.rigid = rigid
+        self.flex = flex
+        self.force = self.Force(self.joint)
+        self.initialcondition = self.InitialCondition(self.joint)
+        rigid.w = float(joint.klOO[0].flatten()[0])
+        rigid.h = float(joint.klOO[1].flatten()[0])
+        rigid.L = float(joint.klOO[2].flatten()[0])
+        rigid.A = rigid.h * rigid.w
+        self.m = rigid.rho * rigid.A * rigid.L
+        rigid.Mk = rigid.get_Mk(self.m)
 
-        # Global stiffness matrix setup
-        K_st = np.zeros((6*self.flex.n_nd, 6*self.flex.n_nd))
-
-        for i in range(self.flex.n_nd - 1):
-            k_i = np.zeros((6*self.flex.n_nd, 6*self.flex.n_nd))
-            k_i[i*6:i*6+12, i*6:i*6+12] = k
-            K_st = K_st + k_i
-        
-        return K_st
-    
-    def get_M_nd(self):
-        # Nodal masses
-        L_elem = self.L / self.flex.n_elem
-        m_e = self.flex.rho * self.A * L_elem
-
-        m = np.full(self.flex.n_nd, m_e)
-        m[-1], m[0] = m_e / 2, m_e / 2
-
-        # Store nodal masses and lenghts
-        self.flex.m_nd = m
-        self.flex.L_elem = L_elem
-
-        block = []
-        for i in range(self.flex.n_nd):
-            block.append(np.zeros((3, 3)))
-            block.append(m[i] * np.eye(3, 3))
-        
-        M = la.block_diag(*block)
-
-        return M
-    
-    def get_PI(self):
-
-        # Fixed BC
-        K_st = self.flex.K_st[6:, 6:]
-        M_nd = self.flex.M_nd[6:, 6:]
-
-        # Rearranging of M and K
-        index = np.zeros((1, 0))
-
-        for i in range(self.flex.n_elem):
-            index_add = np.linspace(i * 6 + 3, i * 6 + 5, 3).reshape(1, 3)
-            index = np.hstack([index, index_add])
-
-        for i in range(self.flex.n_elem):
-            index_add = np.linspace(i * 6, i * 6 + 2, 3).reshape(1, 3)
-            index = np.hstack([index, index_add])
-
-        index = index.flatten().astype(int)
-        K = K_st[np.ix_(index, index)]
-        M = M_nd[np.ix_(index, index)]
-
-        # Find K_tt, K_rr, K_tr, K_rt and M_c
-        sz = M.shape[0]
-        sz2 = int(sz / 2)
-
-        K_tt = K[0:sz2, 0:sz2]
-        K_rr = K[sz2:sz, sz2:sz]
-        K_tr = K[0:sz2, sz2:sz]
-        K_rt = K[sz2:sz, 0:sz2]
-        
-        M_c = M[0:sz2, 0:sz2]
-
-        # Find K_e (np.linalg.inv(K_rr) * K_rt)
-        X = la.solve(K_rr, K_rt, assume_a = "sym")
-        K_c = K_tt - K_tr @ X
-
-        print(np.linalg.norm(M_c))
-        print(np.linalg.norm(K_c))
-
-        # Solve eigenvalue problem for Pi_t (Mass normalized!)
-        eigval, PI_t = la.eigh(K_c, M_c, subset_by_index = (0, self.flex.n_md - 1))
-
-        # Store eigen values
-        self.flex.eigval = eigval
-
-        # Compute rotational part of PI
-        PI_r = - X @ PI_t
-
-        # Store PI_r and PI_t for modal integrals
-        self.flex.PI_r = np.vstack([np.zeros((3, self.flex.n_md)), PI_r])
-        self.flex.PI_t = np.vstack([np.zeros((3, self.flex.n_md)), PI_t])
-
-        # PI setup
-        PI = np.zeros((2 * PI_t.shape[0] + 6, PI_t.shape[1]))
-        for i in range(self.flex.n_elem):
-            PI[i * 6 + 6:i * 6 + 9, :] = PI_r[i * 3:i * 3 + 3, :]
-            PI[i * 6 + 9:i * 6 + 12, :] = PI_t[i * 3:i * 3 + 3, :]
-        
-        return PI
-    
-    def get_Modal_Int(self):
-        # Parameters
-        m = self.m
-        m_nd = self.flex.m_nd.reshape(-1, 1)
-        L_elem = self.flex.L_elem
-        PI_t = self.flex.PI_t
-        n_md = self.flex.n_md
-        n_nd = self.flex.n_nd
-
-        # Initialize sums
-        p_0_sum = np.zeros((3, 1))
-        CkJk_0_sum = np.zeros((3, 3))
-        F_0_sum = np.zeros((3, n_md))
-        G_0_sum = np.zeros((n_md, n_md))
-        E_0_sum = np.zeros((3, n_md))
-
-        for i in range(n_nd):
-            # Parameters
-            klkO = np.array([0, 0, i * L_elem]).reshape(3, 1)
-            klkO_skew = sb.skew(klkO)
-
-            # Compute sums
-            p_0_sum += m_nd[i] * klkO
-
-            CkJk_0_sum += - m_nd[i] * klkO_skew @ klkO_skew
+        # Structural analysis is PI == [None]
+        if self.flex.PI == [None]:
+            body_analysis = Structural_Analysis_PM_Rect(joint.klOO, rigid.rho, flex.E, flex.G, flex.n_nd, flex.n_md)
             
-            for r in range(n_md):
-                F_0_sum[:, r] += m_nd[i] * klkO_skew @ PI_t[i * 3: i * 3 + 3, r]
-                E_0_sum[:, r] += m_nd[i] * PI_t[i * 3: i*3 + 3, r]
+            # PI
+            self.flex.PI = body_analysis.PI
+            self.flex.eigval = body_analysis.eigval
 
-                for s in range(n_md):
-                    G_0_sum[r, s] += m_nd[i] * PI_t[i * 3: i*3 + 3, r].T @ PI_t[i * 3: i*3 + 3, s]
+            # Stiffness and mass matrix
+            self.flex.K_fl = body_analysis.K_fl
+            self.flex.M_fl = body_analysis.M_fl
 
-        # Store modal integrals
-        self.flex.p_0 = 1/m * p_0_sum
-        self.flex.CkJk_0 = CkJk_0_sum
-        self.flex.F_0 = F_0_sum
-        self.flex.G_0 = G_0_sum
-        self.flex.E_0 = E_0_sum
+    def set_tau(self, tau):
+        self.force.tau = tau
+    
+    def set_F_ext(self, F_ext, klBO):
+        F = np.zeros((6, 1))
+        for i in range(len(F_ext)):
+            F = F + sb.phi(klBO[i]) @ F_ext[i]
+        self.force.sum_phi_F_ext = F
 
-    def get_M(self):
-        # Parameters
-        p_0_skew = sb.skew(self.flex.p_0)
-        CkJk_0 = self.flex.CkJk_0
-        F_0 = self.flex.F_0
-        G_0 = self.flex.G_0
-        E_0 = self.flex.E_0
+    def set_initial_theta0(self, theta0):
+        self.initialcondition.theta0 = theta0
 
-        m = self.inertia.m
-
-        # Build M
-        rw1 = np.hstack([G_0, F_0.T, E_0.T])
-        rw2 = np.hstack([F_0, CkJk_0, m * p_0_skew])
-        rw3 = np.hstack([E_0, -m * p_0_skew, m * np.eye(3)])
-
-        return np.vstack([rw1, rw2, rw3])
-
+    def set_initial_beta0(self, beta0):
+        self.initialcondition.beta0 = beta0
+    
     def get_D_m_inv(self, Gamma):
         # Parameters
         n_md = self.flex.n_md 
@@ -272,49 +175,6 @@ class SOABody:
         Gamma_inv = la.inv(Gamma)
 
         return L_fl - la.solve((Gamma_inv + D_fl).T, U_fl.T).T @ U_fl.T
-
-
-    def __init__(self, joint: Joint, inertia: Inertia, flex: Flex, h, w):
-        self.joint = joint
-        self.inertia = inertia
-        self.flex = flex
-        self.force = self.Force(self.joint)
-        self.initialcondition = self.InitialCondition(self.joint)
-        self.h = h
-        self.w = w
-        self.A = h * w
-        self.L = np.linalg.norm(self.joint.klOO)
-        self.m = flex.rho * self.A * self.L
-
-        # Intermidiate stiffness and mass matrix
-        self.flex.K_st = self.get_K_st()
-        self.flex.M_nd = self.get_M_nd()
-
-        # PI
-        if self.flex.PI == [None]:
-            self.flex.PI = self.get_PI()
-
-        # Stiffness and mass matrix
-        self.flex.K = np.zeros((self.flex.n_md + 6, self.flex.n_md + 6))
-        self.flex.K[0:self.flex.n_md, 0:self.flex.n_md] = self.flex.PI.T @ self.flex.M_nd @ self.flex.PI
-
-        self.get_Modal_Int()
-        self.flex.M = self.get_M()
-    
-    def set_tau(self, tau):
-        self.force.tau = tau
-    
-    def set_F_ext(self, F_ext, klBO):
-        F = np.zeros((6, 1))
-        for i in range(len(F_ext)):
-            F = F + sb.phi(klBO[i]) @ F_ext[i]
-        self.force.sum_phi_F_ext = F
-
-    def set_initial_theta0(self, theta0):
-        self.initialcondition.theta0 = theta0
-
-    def set_initial_beta0(self, beta0):
-        self.initialcondition.beta0 = beta0
 
 class SystemState:
 # State of system class
@@ -412,8 +272,8 @@ class ATBI:
             H = body.joint.H
             Mk = body.inertia.Mk
             PI = body.flex.PI
-            K_fl = body.flex.K
-            M_fl = body.flex.M
+            K_fl = body.flex.K_fl
+            M_fl = body.flex.M_fl
             n_md = body.flex.n_md
 
             # Build X
@@ -466,12 +326,12 @@ class ATBI:
             sum_phi_F_ext = body.force.sum_phi_F_ext
             tau_pr = body.force.tau
             eta = state.Eta
-            M_fl = body.flex.M
-            K = body.flex.K
+            M_fl = body.flex.M_fl
+            K_fl = body.flex.K_fl
             PI = body.flex.PI
             n_md = body.flex.n_md
             H_M_fl = np.hstack([np.eye(n_md, n_md), np.zeros((n_md, 6))])
-
+            
             if k == 0:
                 # Gather loop for k = 0 (Base Case)
                 # 13.6
@@ -488,7 +348,7 @@ class ATBI:
                 P_pr_plus[k] = tau_pr_bar @ P_pr[k]
 
                 # 13.7
-                z = b_fl + K @ np.vstack([eta, np.zeros((6, 1))])
+                z = b_fl + K_fl @ np.vstack([eta, np.zeros((6, 1))])
                 eps_m = - z[0:n_md]  # tau_m (assumed to be zero): dim(n_md, 1)
                 nu_m[k] = D_m_inv @ eps_m
 
@@ -523,7 +383,7 @@ class ATBI:
                 P_pr_plus[k] = tau_pr_bar @ P_pr[k]
 
                 # 13.7
-                z =  A_fl @ R6 @ z_pr_plus[k-1] + b_fl + K @ np.vstack([eta, np.zeros((6, 1))])
+                z =  A_fl @ R6 @ z_pr_plus[k-1] + b_fl + K_fl @ np.vstack([eta, np.zeros((6, 1))])
                 eps_m = - z[0:n_md]  # tau_m (assumed to be zero): dim(n_md, 1)
                 nu_m[k] = D_m_inv @ eps_m
 
