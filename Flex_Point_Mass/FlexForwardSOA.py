@@ -283,7 +283,7 @@ class ATBI:
                 R6 = sb.q2R(q.flatten(), 6)
                 R_tot = sb.get_R_tot(R6, n_md)
 
-                A_fl = sb.get_A(PI, X[k][4:7])
+                A_fl = sb.get_A(PI, klOO)
                 
                 # Gather loop for k > 0
                 Gamma_fl = R_tot @ P_pr_plus[k-1] @ R_tot.T # ?!?!?!?
