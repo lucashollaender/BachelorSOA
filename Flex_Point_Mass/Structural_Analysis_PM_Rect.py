@@ -96,7 +96,7 @@ class Structural_Analysis_PM_Rect:
             k_i = np.zeros((6*self.n_nd, 6*self.n_nd))
             k_i[i*6:i*6+12, i*6:i*6+12] = k
             K_st = K_st + k_i
-        
+
         return K_st
     
     def get_M_nd(self):    

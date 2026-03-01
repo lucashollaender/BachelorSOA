@@ -33,6 +33,10 @@ class SOABody:
             elif np.size(self.theta0) == 7:
                 self.theta0[3] = 1
             self.beta0 = np.zeros((joint.beta_size(), 1))
+
+            # Setup of initial conditions for eta and eta_dot
+            self.eta0 = np.zeros((6, 1))
+            self.eta_dot0 = np.zeros((6, 1))
     
     def __init__(self, joint: Joint, rigid: Rigid_Properties, flex: Flex_Properties):
         # Import classes
@@ -48,12 +52,13 @@ class SOABody:
         self.m = rigid.rho * rigid.A * rigid.L
         rigid.Mk = rigid.get_Mk(self.m)
 
-        # Structural analysis is PI == [None]
+        # Structural analysis is PI == [None] (Point mass: Rectangular cross section)
         if self.flex.PI == [None]:
             body_analysis = Structural_Analysis_PM_Rect(joint.klOO, rigid.rho, flex.E, flex.G, flex.n_nd, flex.n_md)
             
             # PI
             self.flex.PI = body_analysis.PI
+            self.flex.PI_end = body_analysis.PI[-6, :]
             self.flex.eigval = body_analysis.eigval
 
             # Stiffness and mass matrix
@@ -94,20 +99,22 @@ class SOABody:
 
 class SystemState:
 # State of system class
-    def __init__(self, theta, beta):
+    def __init__(self, theta, beta, eta, eta_dot):
         # Parameters
         self.Theta = theta
         self.Beta = beta
+        self.Eta = eta
+        self.Eta_dot = eta_dot
 
-    # Packing of state, S: Two lists to column vector
+    # Packing of state, S: Four lists to column vector
     def pack(self):
-        return np.vstack([*self.Theta, *self.Beta]).flatten()
+        return np.vstack([*self.Theta, *self.Beta, *self.Eta, *self.Eta_dot]).flatten()
 
     # Unpacking of state, S: Column vector to two lists
     @staticmethod
     def unpack(S, joints):
         S = S.flatten()
-        Theta, Beta = [], []
+        Theta, Beta, Eta, Eta_dot = [], [], [], []
         idx = 0
 
         for k in joints:
@@ -120,7 +127,15 @@ class SystemState:
             Beta.append(S[idx:idx + sz].reshape(sz, 1))
             idx += sz
 
-        return SystemState(Theta, Beta)
+        for k in joints:
+            Eta.append(S[idx:idx + 6].reshape(6, 1))
+            idx += 6
+        
+        for k in joints:
+            Eta_dot.append(S[idx:idx + 6].reshape(6, 1))
+            idx += 6
+
+        return SystemState(Theta, Beta, Eta, Eta_dot)
 
 class ATBI:
 # ATBI class with bodies
@@ -187,7 +202,7 @@ class ATBI:
             eta_dot = state.Eta_dot[k]
             H = body.joint.H
             Mk = body.inertia.Mk
-            PI = body.flex.PI
+            PI = self.flex.PI_end
             K_fl = body.flex.K_fl
             M_fl = body.flex.M_fl
             n_md = body.flex.n_md
@@ -244,7 +259,7 @@ class ATBI:
             eta = state.Eta
             M_fl = body.flex.M_fl
             K_fl = body.flex.K_fl
-            PI = body.flex.PI
+            PI = self.flex.PI_end
             n_md = body.flex.n_md
             H_M_fl = np.hstack([np.eye(n_md, n_md), np.zeros((n_md, 6))])
             
@@ -335,7 +350,7 @@ class ATBI:
             # Parameters of the body
             body = self.bodies[k]
             H_B = body.joint.H
-            PI = body.flex.PI
+            PI = self.flex.PI_end
 
             # Unpacking rotation
             q = X[k][0:4]
@@ -371,7 +386,9 @@ class MultibodySystem:
         self.ATBI = ATBI(bodies)
         Theta_0 = [b.initialcondition.theta0 for b in bodies]
         Beta_0 = [b.initialcondition.beta0 for b in bodies]
-        self.S0 = SystemState(Theta_0, Beta_0).pack()
+        Eta_0 = [b.initialcondition.eta0 for b in bodies]
+        Eta_dot_0 = [b.initialcondition.eta_dot0 for b in bodies]
+        self.S0 = SystemState(Theta_0, Beta_0, Eta_0, Eta_dot_0).pack()
         
     def EOM(self, t, S):
             state = SystemState.unpack(S.reshape(-1, 1), [b.joint for b in self.bodies])
@@ -382,11 +399,11 @@ class MultibodySystem:
                     q = state.Theta[k][0:4]
                     state.Theta[k][0:4] = q / np.linalg.norm(q)
 
-            X, V, a, b = self.ATBI.scatter_kinematics(state)
-            G, nu = self.ATBI.gather_ATBI(a, b, X)
-            gamma, alpha = self.ATBI.scatter_ATBI(a, X, G, nu)
+            X, V, a_fl, b_fl = self.ATBI.scatter_kinematics(state)
+            G_pr, nu_pr, nu_m, g_fl = self.ATBI.gather_ATBI(state, a_fl, b_fl, X)
+            theta_ddot, eta_ddot, alpha_fl = self.ATBI.scatter_ATBI(a_fl, X, G_pr, nu_pr, nu_m, g_fl)
 
-            Theta_dot = []
+            Theta_dot, Eta_dot = [], []
             for k, body in enumerate(self.bodies):
                 if body.joint.type.startswith("rev"):
                     Theta_dot.append(state.Beta[k].reshape(1, 1))
@@ -397,8 +414,15 @@ class MultibodySystem:
                     Theta_dot.append(np.vstack([qdot, state.Beta[k][3:6]]).reshape(7, 1))
                 elif body.joint.type == "fixed":
                     Theta_dot.append(np.zeros((0,1)))
+                
+                # Possibility 1:
+                Eta_dot.append(state.Eta[k].reshape(6, 1))
+                
+                # Possibility 2:
+                qdot = sb.quat_derivative(state.Eta[k][0:4], state.Eta_dot[k][0:3]).reshape(4, 1)
+                Eta_dot.append(np.vstack([qdot, state.Eta_dot[k][3:6]]).reshape(7, 1))
 
-            S_dot = np.vstack([*Theta_dot, *gamma]).flatten()
+            S_dot = np.vstack([*Theta_dot, *theta_ddot, *Eta_dot, *eta_ddot]).flatten()
             return S_dot
 
 class Simulation:
@@ -717,5 +741,5 @@ class Simulation:
 #               Choose another folder than the GIT-Hub synchronize folder, since the file will
 #               be to big and result in a "commit" error.
 
-# To DOOOOOOOOOOOOO
-# Mass import in inertia is not consistent with rho
+# To DOOOOOOOOOOOOO:
+# Shouldnt the zeros come first in K_fl? In Structural_Analysis_PM_Rect 

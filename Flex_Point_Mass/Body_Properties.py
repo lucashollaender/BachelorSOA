@@ -67,6 +67,7 @@ class Flex_Properties:
         self.M_fl = [None]
         self.eigval = [None]
         self.PI = [None]
+        self.PI_end = [None]
     
     def set_PI(self, PI):
         self.PI = PI
