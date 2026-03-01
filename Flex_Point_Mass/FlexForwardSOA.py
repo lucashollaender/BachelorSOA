@@ -664,7 +664,7 @@ class Simulation:
 
 """ ------ File Setup ------ """
 # Remember to run this:
-# from SOALIB.RigidForwardSOA import Joint, Inertia, SOABody, MultibodySystem, Simulation
+# from <SOALIB.>RigidForwardSOA import Joint, Inertia, SOABody, MultibodySystem, Simulation
 
 """ ------ Body Setup ------ """
 # *** Body Parameters ****
