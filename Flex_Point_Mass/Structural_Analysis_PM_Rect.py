@@ -1,10 +1,8 @@
 import numpy as np
-import scipy as sp
 import scipy.linalg as la
 import pandas as pd
 from SOALIB import soalib as sb
-import copy
-import os
+from Body_Properties import Joint, Rigid_Properties, Flex_Properties
 
 class Structural_Analysis_PM_Rect:
     """
@@ -181,7 +179,7 @@ class Structural_Analysis_PM_Rect:
     def get_K_fl(self):
         # Initialize K
         K = np.zeros((self.n_md + 6, self.n_md + 6))
-        K[0:self.n_md, 0:self.n_md] = self.PI.T @ self.M_nd @ self.PI
+        K[0:self.n_md, 0:self.n_md] = self.PI.T @ self.K_st @ self.PI
         
         return K
 
@@ -245,19 +243,19 @@ class Structural_Analysis_PM_Rect:
 
         return np.vstack([rw1, rw2, rw3])
     
-    def __init__(self, klOO, rho, E, G, n_nd, n_md):
-        self.w = float(klOO[0].flatten()[0])
-        self.h = float(klOO[1].flatten()[0])
-        self.L = float(klOO[2].flatten()[0])
-        self.A = self.w * self.h
-        self.m = rho * self.A * self.L
-        self.E = E
-        self.G = G
-        self.n_nd = n_nd
-        self.n_md = n_md
-        self.n_elem = n_nd - 1
+    def __init__(self, joint: Joint, rigid: Rigid_Properties, flex: Flex_Properties):
+        self.w = float(joint.klOO[0].flatten()[0])
+        self.h = float(joint.klOO[1].flatten()[0])
+        self.L = float(joint.klOO[2].flatten()[0])
+        self.A = rigid.w * rigid.h
+        self.m = rigid.rho * self.A * self.L
+        self.E = flex.E
+        self.G = flex.G
+        self.n_nd = flex.n_nd
+        self.n_md = flex.n_md
+        self.n_elem = self.n_nd - 1
         self.L_elem = self.L / self.n_elem
-        self.m_e = rho * self.A * self.L_elem
+        self.m_e = rigid.rho * self.A * self.L_elem
 
         # Structural analysis
         self.K_st = self.get_K_st()
