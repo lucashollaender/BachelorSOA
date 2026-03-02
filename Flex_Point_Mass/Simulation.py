@@ -7,6 +7,7 @@ import os
 from MultibodySystem import MultibodySystem
 from SystemState import SystemState
 from SOALIB import soalib as sb
+import pandas as pd
 
 
 class Simulation:
@@ -54,16 +55,16 @@ class Simulation:
             current_state = SystemState.unpack(states[i].reshape(-1, 1), [b.joint for b in self.system.bodies], [b.flex for b in self.system.bodies])
             
             # Kinematic scatter loop to find X
-            X, V, a, b = self.system.ATBI.scatter_kinematics(current_state)
-            G, nu = self.system.ATBI.gather_ATBI(a, b, X)
-            gamma, alpha = self.system.ATBI.scatter_ATBI(a, X, G, nu)
+            X, V, a_fl, b_fl = self.system.ATBI.scatter_kinematics(current_state)
+            G_pr, nu_pr, nu_m, g_fl = self.system.ATBI.gather_ATBI(current_state, a_fl, b_fl, X, self.data.time[i])
+            _, _, alpha = self.system.ATBI.scatter_ATBI(a_fl, X, G_pr, nu_pr, nu_m, g_fl)
 
             # Add to list
             self.data.state.append(current_state)
             self.data.X_list.append(X)
             self.data.V_list.append(V)
-            self.data.a_list.append(a)
-            self.data.b_list.append(b)
+            self.data.a_list.append(a_fl)
+            self.data.b_list.append(b_fl)
             self.data.alpha_list.append(alpha)
 
     # Call functions for data
@@ -94,6 +95,158 @@ class Simulation:
 
     def camera_hor(self, x):
         self.setting.camera_hor = x
+
+
+    def nNodalPos(self):
+        t = self.data.time
+        X = self.data.X_list
+        
+        # Access body 1 (index 0) parameters
+        body = self.system.bodies[0]
+        n_nd = body.flex.n_nd
+        PI = body.flex.PI
+        L = body.rigid.L
+        L_elem = L / (n_nd - 1)
+        
+        nt = len(t)
+        nodal_pos = []
+        
+        for i in range(nt):
+            state = self.data.state[i]
+            eta = state.Eta[0]
+            
+            # Base translation (account for free joint if applicable)
+            dxyz = np.zeros((3, 1))
+            if body.joint.type == "free":
+                dxyz = state.Theta[0][4:7].reshape(3, 1)
+                
+            nodes_at_t = []
+            
+            for j in range(n_nd):
+                # 1. Undeformed position in local frame (Structural analysis assumes beam along Z-axis)
+                p_und = np.array([[0], [0], [j * L_elem]])
+                
+                # 2. Translational deformation for node j
+                # (Translations are stored at indices j*6+3 to j*6+6 in the PI matrix)
+                # Define a small tolerance based on your dt
+                tolerance = 1e-6 
+
+                # Check if the current time is very close to an integer
+                x = 1
+                if i % 20 == 0 and j == n_nd-1 and x == 1:
+                    print(pd.DataFrame(eta))
+                    print(pd.DataFrame(PI[j*6+3 : j*6+6, :]))
+                
+                u_j = PI[j*6+3 : j*6+6, :] @ eta
+                
+                # 3. Global position of node j
+                p_glob = dxyz + (p_und + u_j)
+                nodes_at_t.append(p_glob)
+                
+            nodal_pos.append(nodes_at_t)
+            
+        return nodal_pos
+
+    def animate_nodes(self, filename="", save_dir=""):
+        # Takes nodal position list and returns 3D simulation of the flexible beam
+
+        t = self.data.time
+        dt = t[1] - t[0]
+
+        # Get nodal positions for the flexible beam
+        nodal_pos = self.nNodalPos()
+        
+        if not nodal_pos:
+            print("Error: No nodal position data found. Did you run the integration?")
+            return
+
+        nt = len(nodal_pos)
+        n_nd = len(nodal_pos[0])
+
+        # Initialize animation
+        fig = plt.figure(figsize=(10, 8))
+        ax = fig.add_subplot(111, projection='3d')
+
+        # Determine Axis Limits dynamically based on node movement
+        all_points = []
+        # Sample frames to speed up boundary calculation
+        step = max(1, nt // 50) 
+        for i in range(0, nt, step):  
+            for node in nodal_pos[i]:
+                all_points.append(node.flatten())
+
+        all_points = np.array(all_points)
+        max_range = np.abs(all_points).max()
+        
+        # Prevent zero-range if the beam doesn't move
+        if max_range == 0: 
+            max_range = 1.0
+
+        ax.set_xlim(-5, 5)
+        ax.set_ylim(-5, 5)
+        ax.set_zlim(0, 7)
+
+        ax.set_xlabel('X')
+        ax.set_ylabel('Y')
+        ax.set_zlabel('Z')
+        ax.set_title(f"Flexible Beam Animation ({n_nd} Nodes)")
+
+        # Create a single line representing the continuous flexible beam
+        beam_line, = ax.plot([], [], [], '-', lw=4, color='blue', marker='o', markersize=4)
+
+        # Plot origin for reference
+        ax.plot([0], [0], [0], 'o', color='gray', markersize=6)
+
+        # Initialize the timer text
+        time_text = ax.text2D(0.05, 0.95, '', transform=ax.transAxes)
+
+        def update(frame_idx):
+            current_nodes = nodal_pos[frame_idx]
+
+            # Extract x, y, z coordinates for all nodes at the current frame
+            xs = [float(node[0][0]) for node in current_nodes]
+            ys = [float(node[1][0]) for node in current_nodes]
+            zs = [float(node[2][0]) for node in current_nodes]
+
+            # Update the beam line data
+            beam_line.set_data(xs, ys)
+            beam_line.set_3d_properties(zs)
+
+            # Update timer
+            time_text.set_text(f'Time: {t[frame_idx]:.2f} s')
+
+            # Handle camera rotation settings
+            ax.view_init(elev=self.setting.camera_ver, 
+                         azim=frame_idx * self.setting.camera_speed * 40 * dt + self.setting.camera_hor)
+
+            return beam_line, time_text
+
+        # Create Animation
+        anim = FuncAnimation(
+            fig,
+            update,
+            frames=nt,
+            interval=dt*1000,
+            blit=False)
+
+        if filename != "":
+            print("Rendering animation to HTML... (This may take a minute)")
+            filename = filename + ".html"
+
+            if save_dir:
+                os.makedirs(save_dir, exist_ok=True)
+                fullpath = os.path.join(save_dir, filename)
+            else:
+                fullpath = filename
+
+            with open(fullpath, "w") as f:
+                f.write(anim.to_jshtml())
+
+            print("Rendering of animation: Done!")
+            print(f"Saved to {fullpath}")
+
+        else:
+            plt.show()
 
     def nBodyPos(self):
         # Takes time vector, t and X-vector [q, klOO]^T and returns hinge positions

@@ -34,14 +34,14 @@ class Joint:
 
 class Rigid_Properties:
 # Inertia class with m, CkJk and klOC
-    def __init__(self, rho, klOC):
+    def __init__(self, rho, klOC, w, h):
         # Parameters
         self.rho = rho
         self.klOC = klOC.reshape(3, 1)
         self.CkJk = [None]
         self.Mk = [None]
-        self.w = [None]
-        self.h = [None]
+        self.w = w
+        self.h = h
         self.L = [None]
     
     def get_Mk(self, m, CkJk):

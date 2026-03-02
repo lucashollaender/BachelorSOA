@@ -15,7 +15,7 @@ class SOABody:
     class Force:
         def __init__(self, joint: Joint):
             self.tau = np.zeros((joint.beta_size(), 1))
-            self.sum_phi_F_ext = np.zeros((6, 1))
+            self.F_ext = np.zeros((6, 1))
 
     class InitialCondition:
         def __init__(self, joint: Joint, flex: Flex_Properties):
@@ -38,9 +38,7 @@ class SOABody:
         self.flex = flex
         self.force = self.Force(self.joint)
         self.initialcondition = self.InitialCondition(joint, flex)
-        rigid.w = float(joint.klOO[0].flatten()[0])
-        rigid.h = float(joint.klOO[1].flatten()[0])
-        rigid.L = float(joint.klOO[2].flatten()[0])
+        rigid.L = float(np.linalg.norm(joint.klOO))
         rigid.A = rigid.h * rigid.w
         self.m = rigid.rho * rigid.A * rigid.L
         self.rigid.CkJk = np.array([1/12 * self.m * (rigid.h**2 + rigid.L**2), 1/12 * self.m * (rigid.w**2 + rigid.L**2), 1/12 * self.m * (rigid.h**2 + rigid.w**2)])
@@ -48,7 +46,7 @@ class SOABody:
 
         # Structural analysis is PI == [None] (Point mass: Rectangular cross section)
         if self.flex.PI == [None]:
-            body_analysis = Structural_Analysis_PM_Rect(joint, rigid, flex)
+            body_analysis = Structural_Analysis_PM_Rect(rigid, flex)
 
             # PI
             self.flex.PI = body_analysis.PI
@@ -70,11 +68,8 @@ class SOABody:
     def set_tau(self, tau):
         self.force.tau = tau
 
-    def set_F_ext(self, F_ext, klBO):
-        F = np.zeros((6, 1))
-        for i in range(len(F_ext)):
-            F = F + sb.phi(klBO[i]) @ F_ext[i]
-        self.force.sum_phi_F_ext = F
+    def set_F_ext(self, F_ext):
+        self.force.F_ext = F_ext
 
     def set_initial_theta0(self, theta0):
         self.initialcondition.theta0 = theta0
