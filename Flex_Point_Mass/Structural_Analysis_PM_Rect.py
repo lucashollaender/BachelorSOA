@@ -179,7 +179,7 @@ class Structural_Analysis_PM_Rect:
     def get_K_fl(self):
         # Initialize K
         K = np.zeros((self.n_md + 6, self.n_md + 6))
-        K[0:self.n_md, 0:self.n_md] = self.PI.T @ self.M_nd @ self.PI
+        K[0:self.n_md, 0:self.n_md] = self.PI.T @ self.K_st @ self.PI
         
         return K
 

@@ -28,6 +28,8 @@ bodies = [b1, b1]
 
 system = MultibodySystem(bodies)
 
+
+
 print("PI")
 print(pd.DataFrame(b1.flex.PI))
 print("eigval")
