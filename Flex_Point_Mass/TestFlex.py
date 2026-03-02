@@ -1,7 +1,7 @@
-from SOABody import SOABody
-from MultibodySystem import MultibodySystem
-from Simulation import Simulation
-from Body_Properties import Joint, Rigid_Properties, Flex_Properties
+from .SOABody import SOABody
+from .MultibodySystem import MultibodySystem
+from .Simulation import Simulation
+from .Body_Properties import Joint, Rigid_Properties, Flex_Properties
 import numpy as np
 from SOALIB import soalib as sb
 import pandas as pd
@@ -27,7 +27,6 @@ b1 = SOABody(j1, r, f)
 bodies = [b1, b1]
 
 system = MultibodySystem(bodies)
-
 
 
 print("PI")
