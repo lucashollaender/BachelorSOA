@@ -46,7 +46,7 @@ class SOABody:
 
         # Structural analysis is PI == [None] (Point mass: Rectangular cross section)
         if self.flex.PI == [None]:
-            body_analysis = Structural_Analysis_PM_Rect(joint.klOO, rigid.rho, flex.E, flex.G, flex.n_nd, flex.n_md)
+            body_analysis = Structural_Analysis_PM_Rect(joint, rigid, flex)
             
             # PI
             self.flex.PI = body_analysis.PI
