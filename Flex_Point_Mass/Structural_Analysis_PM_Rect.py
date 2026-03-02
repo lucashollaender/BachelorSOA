@@ -219,6 +219,7 @@ class Structural_Analysis_PM_Rect:
         # Store modal integrals
         self.p_0 = 1/m * p_0_sum
         self.CkJk_0 = CkJk_0_sum
+        self.CkJk_0[2, 2] = self.CkJk[2]
         self.F_0 = F_0_sum
         self.G_0 = G_0_sum
         self.E_0 = E_0_sum
@@ -253,6 +254,7 @@ class Structural_Analysis_PM_Rect:
         self.G = flex.G
         self.n_nd = flex.n_nd
         self.n_md = flex.n_md
+        self.CkJk = rigid.CkJk
         self.n_elem = self.n_nd - 1
         self.L_elem = self.L / self.n_elem
         self.m_e = rigid.rho * self.A * self.L_elem

@@ -62,7 +62,7 @@ def bar6(V):
 
 
 def phi(l):
-    l = np.asarray(l).reshape(3,)
+    l = np.asarray(l).flatten()
     return np.block([
         [np.eye(3),          skew(l)],
         [np.zeros((3, 3)),   np.eye(3)]
@@ -128,8 +128,8 @@ def get_quat_from_degrees(x, y, z):
 
     return q
 
-def get_A(PI, klOO):
-    return np.vstack([PI[-6:, :].T, phi(klOO)])
+def get_A(PI_end, klOO):
+    return np.vstack([PI_end.T, phi(klOO)])
 
 def get_R_tot(R6, n_md):
     rw1 = np.hstack([np.eye(n_md, n_md), np.zeros((n_md, 6))])

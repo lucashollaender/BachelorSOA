@@ -15,7 +15,7 @@ class MultibodySystem:
         self.S0 = SystemState(Theta_0, Beta_0, Eta_0, Eta_dot_0).pack()
         
     def EOM(self, t, S):
-            state = SystemState.unpack(S.reshape(-1, 1), [b.joint for b in self.bodies])
+            state = SystemState.unpack(S.reshape(-1, 1), [b.joint for b in self.bodies], [b.flex for b in self.bodies])
 
             # Normalize quaternions
             for k, body in enumerate(self.bodies):

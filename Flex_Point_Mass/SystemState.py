@@ -16,7 +16,7 @@ class SystemState:
 
     # Unpacking of state, S: Column vector to two lists
     @staticmethod
-    def unpack(S, joints):
+    def unpack(S, joints, flexs):
         S = S.flatten()
         Theta, Beta, Eta, Eta_dot = [], [], [], []
         idx = 0
@@ -31,12 +31,14 @@ class SystemState:
             Beta.append(S[idx:idx + sz].reshape(sz, 1))
             idx += sz
 
-        for k in joints:
-            Eta.append(S[idx:idx + 6].reshape(6, 1))
-            idx += 6
+        for k in flexs:
+            sz = k.n_md
+            Eta.append(S[idx:idx + sz].reshape(sz, 1))
+            idx += sz
         
-        for k in joints:
-            Eta_dot.append(S[idx:idx + 6].reshape(6, 1))
-            idx += 6
+        for k in flexs:
+            sz = k.n_md
+            Eta_dot.append(S[idx:idx + sz].reshape(sz, 1))
+            idx += sz
 
         return SystemState(Theta, Beta, Eta, Eta_dot)

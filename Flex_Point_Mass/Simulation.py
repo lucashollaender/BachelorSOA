@@ -50,7 +50,7 @@ class Simulation:
         for i in range(len(self.data.time)):
 
             # Unpack state            
-            current_state = SystemState.unpack(states[i].reshape(-1, 1), [b.joint for b in self.system.bodies])
+            current_state = SystemState.unpack(states[i].reshape(-1, 1), [b.joint for b in self.system.bodies], [b.flex for b in self.system.bodies])
             
             # Kinematic scatter loop to find X
             X, V, a, b = self.system.ATBI.scatter_kinematics(current_state)
