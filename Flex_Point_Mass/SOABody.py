@@ -9,13 +9,14 @@ from Body_Properties import Joint, Rigid_Properties, Flex_Properties
 # Increase limit to 100 MB (default is 20)
 plt.rcParams['animation.embed_limit'] = 1000
 
+
 class SOABody:
-# SOAbody class
+    # SOAbody class
     class Force:
         def __init__(self, joint: Joint):
             self.tau = np.zeros((joint.beta_size(), 1))
             self.sum_phi_F_ext = np.zeros((6, 1))
-        
+
     class InitialCondition:
         def __init__(self, joint: Joint, flex: Flex_Properties):
             # Setup of initial conditions (assumes identity rotation and no initial velocity)
@@ -48,7 +49,7 @@ class SOABody:
         # Structural analysis is PI == [None] (Point mass: Rectangular cross section)
         if self.flex.PI == [None]:
             body_analysis = Structural_Analysis_PM_Rect(joint, rigid, flex)
-            
+
             # PI
             self.flex.PI = body_analysis.PI
             self.flex.PI_end = body_analysis.PI[-6:, :]
@@ -68,7 +69,7 @@ class SOABody:
 
     def set_tau(self, tau):
         self.force.tau = tau
-    
+
     def set_F_ext(self, F_ext, klBO):
         F = np.zeros((6, 1))
         for i in range(len(F_ext)):

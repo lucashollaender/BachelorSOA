@@ -2,7 +2,8 @@ import numpy as np
 import scipy.linalg as la
 import pandas as pd
 from SOALIB import soalib as sb
-from Body_Properties import Joint, Rigid_Properties, Flex_Properties
+from .Body_Properties import Joint, Rigid_Properties, Flex_Properties
+
 
 class Structural_Analysis_PM_Rect:
     """
@@ -45,7 +46,7 @@ class Structural_Analysis_PM_Rect:
         phi_y = 12 * E * I_x * k_y / (A * G * L**2)
         S = G * K / L
 
-        # Z    
+        # Z
         Z = A * E / L
 
         # X
@@ -63,7 +64,8 @@ class Structural_Analysis_PM_Rect:
         # Stiffness matrix
         diag = [None] * 6
 
-        diag[0] = np.array([Z, X_1, Y_1, S, Y_3, X_3, Z, X_1, Y_1, S, Y_3, X_3])
+        diag[0] = np.array(
+            [Z, X_1, Y_1, S, Y_3, X_3, Z, X_1, Y_1, S, Y_3, X_3])
         diag[1] = np.array([0, 0, -Y_2, 0, 0, -X_2, 0, 0, Y_2, 0])
         diag[2] = np.array([0, X_2, 0, 0, Y_2, 0, 0, -X_2])
         diag[3] = np.array([-Z, -X_1, -Y_1, -S, Y_4, X_4])
@@ -74,16 +76,16 @@ class Structural_Analysis_PM_Rect:
 
         for i in range(1, 6):
             k = k + np.diag(diag[i], k=-2*i) + np.diag(diag[i], k=2*i)
-        
+
         # Change so rotations first is along
         perm = [3, 4, 5, 0, 1, 2, 9, 10, 11, 6, 7, 8]
-        
+
         k_perm = k[np.ix_(perm, perm)]
 
         return k_perm
 
     def get_K_st(self):
-        
+
         # Get nodal stiffness
         k = self.get_stiff_mat_rect_3D()
 
@@ -96,8 +98,8 @@ class Structural_Analysis_PM_Rect:
             K_st = K_st + k_i
 
         return K_st
-    
-    def get_M_nd(self):    
+
+    def get_M_nd(self):
         # Nodal masses
         m_e = self.m_e
 
@@ -111,11 +113,11 @@ class Structural_Analysis_PM_Rect:
         for i in range(self.n_nd):
             block.append(np.zeros((3, 3)))
             block.append(m[i] * np.eye(3, 3))
-        
+
         M = la.block_diag(*block)
 
         return M
-    
+
     def get_PI(self):
 
         # Fixed BC
@@ -145,18 +147,18 @@ class Structural_Analysis_PM_Rect:
         K_rr = K[sz2:sz, sz2:sz]
         K_tr = K[0:sz2, sz2:sz]
         K_rt = K[sz2:sz, 0:sz2]
-        
+
         M_c = M[0:sz2, 0:sz2]
 
         # Find K_e (np.linalg.inv(K_rr) * K_rt)
-        X = la.solve(K_rr, K_rt, assume_a = "sym")
+        X = la.solve(K_rr, K_rt, assume_a="sym")
         K_c = K_tt - K_tr @ X
 
         print(np.linalg.norm(M_c))
         print(np.linalg.norm(K_c))
 
         # Solve eigenvalue problem for Pi_t (Mass normalized!)
-        eigval, PI_t = la.eigh(K_c, M_c, subset_by_index = (0, self.n_md - 1))
+        eigval, PI_t = la.eigh(K_c, M_c, subset_by_index=(0, self.n_md - 1))
 
         # Store eigen values
         self.eigval = eigval
@@ -173,14 +175,14 @@ class Structural_Analysis_PM_Rect:
         for i in range(self.n_elem):
             PI[i * 6 + 6:i * 6 + 9, :] = PI_r[i * 3:i * 3 + 3, :]
             PI[i * 6 + 9:i * 6 + 12, :] = PI_t[i * 3:i * 3 + 3, :]
-        
+
         return PI
-    
+
     def get_K_fl(self):
         # Initialize K
         K = np.zeros((self.n_md + 6, self.n_md + 6))
         K[0:self.n_md, 0:self.n_md] = self.PI.T @ self.K_st @ self.PI
-        
+
         return K
 
     def get_Modal_Int(self):
@@ -208,13 +210,15 @@ class Structural_Analysis_PM_Rect:
             p_0_sum += m_nd[i] * klkO
 
             CkJk_0_sum += - m_nd[i] * klkO_skew @ klkO_skew
-            
+
             for r in range(n_md):
-                F_0_sum[:, r] += m_nd[i] * klkO_skew @ PI_t[i * 3: i * 3 + 3, r]
+                F_0_sum[:, r] += m_nd[i] * \
+                    klkO_skew @ PI_t[i * 3: i * 3 + 3, r]
                 E_0_sum[:, r] += m_nd[i] * PI_t[i * 3: i*3 + 3, r]
 
                 for s in range(n_md):
-                    G_0_sum[r, s] += m_nd[i] * PI_t[i * 3: i*3 + 3, r].T @ PI_t[i * 3: i*3 + 3, s]
+                    G_0_sum[r, s] += m_nd[i] * PI_t[i * 3: i *
+                                                    3 + 3, r].T @ PI_t[i * 3: i*3 + 3, s]
 
         # Store modal integrals
         self.p_0 = 1/m * p_0_sum
@@ -243,7 +247,7 @@ class Structural_Analysis_PM_Rect:
         rw3 = np.hstack([E_0, -m * p_0_skew, m * np.eye(3)])
 
         return np.vstack([rw1, rw2, rw3])
-    
+
     def __init__(self, joint: Joint, rigid: Rigid_Properties, flex: Flex_Properties):
         self.w = float(joint.klOO[0].flatten()[0])
         self.h = float(joint.klOO[1].flatten()[0])
