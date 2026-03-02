@@ -186,7 +186,7 @@ if __name__ == "__main__":
     E = 230e9
     G = 80e9
     h=0.1
-    w=0.1
+    w=0.3
     rho=7850
     L=5
     n_nd=4
@@ -240,10 +240,13 @@ if __name__ == "__main__":
     print(Jprint)
 
     M_fl=build_Mfl(G0, F0, E0, J0, p0, m_tot)
-    mflprint=pd.DataFrame(M_fl)
+    mflprinttot=pd.DataFrame(M_fl)
+    mflprint=pd.DataFrame(M_fl[-6:,-6:])
+    print("Mfl")
     print(mflprint)
+    print(mflprinttot)
 
     Pi=results["modes_red6"]
     Pi = np.vstack((np.zeros((6, Pi.shape[1])), Pi))
-    piprint=pd.DataFrame(Pi)
-    
+
+    Kmodal=Pi.T@K_st@Pi
