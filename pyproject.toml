@@ -7,8 +7,5 @@ name = "bachelorsoa"
 version = "0.0.0"
 requires-python = ">=3.10"
 
-[tool.setuptools]
-package-dir = {"" = "src"}
-
 [tool.setuptools.packages.find]
-where = ["src"]
+where = ["."]

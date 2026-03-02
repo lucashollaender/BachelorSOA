@@ -3,19 +3,20 @@ import matplotlib.pyplot as plt
 import scipy.linalg as la
 from SOALIB import soalib as sb
 from scipy.integrate import solve_ivp
-from Structural_Analysis_PM_Rect import Structural_Analysis_PM_Rect
-from Body_Properties import Joint, Rigid_Properties, Flex_Properties
+from .Structural_Analysis_PM_Rect import Structural_Analysis_PM_Rect
+from .Body_Properties import Joint, Rigid_Properties, Flex_Properties
 
 # Increase limit to 100 MB (default is 20)
 plt.rcParams['animation.embed_limit'] = 1000
 
+
 class SOABody:
-# SOAbody class
+    # SOAbody class
     class Force:
         def __init__(self, joint: Joint):
             self.tau = np.zeros((joint.beta_size(), 1))
             self.sum_phi_F_ext = np.zeros((6, 1))
-        
+
     class InitialCondition:
         def __init__(self, joint: Joint):
             # Setup of initial conditions (assumes identity rotation and no initial velocity)
@@ -29,7 +30,7 @@ class SOABody:
             # Setup of initial conditions for eta and eta_dot
             self.eta0 = np.zeros((6, 1))
             self.eta_dot0 = np.zeros((6, 1))
-    
+
     def __init__(self, joint: Joint, rigid: Rigid_Properties, flex: Flex_Properties):
         # Import classes
         self.joint = joint
@@ -47,7 +48,7 @@ class SOABody:
         # Structural analysis is PI == [None] (Point mass: Rectangular cross section)
         if self.flex.PI == [None]:
             body_analysis = Structural_Analysis_PM_Rect(joint, rigid, flex)
-            
+
             # PI
             self.flex.PI = body_analysis.PI
             self.flex.PI_end = body_analysis.PI[-6, :]
@@ -59,7 +60,7 @@ class SOABody:
 
     def set_tau(self, tau):
         self.force.tau = tau
-    
+
     def set_F_ext(self, F_ext, klBO):
         F = np.zeros((6, 1))
         for i in range(len(F_ext)):
@@ -71,10 +72,10 @@ class SOABody:
 
     def set_initial_beta0(self, beta0):
         self.initialcondition.beta0 = beta0
-    
+
     def get_D_m_inv(self, Gamma):
         # Parameters
-        n_md = self.flex.n_md 
+        n_md = self.flex.n_md
 
         H_M_fl = np.hstack([np.eye(n_md, n_md), np.zeros((n_md, 6))])
         M_fl = self.flex.M
