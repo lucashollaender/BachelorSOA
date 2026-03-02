@@ -2,7 +2,7 @@ import numpy as np
 import scipy.linalg as la
 import pandas as pd
 from SOALIB import soalib as sb
-from .Body_Properties import Joint, Rigid_Properties, Flex_Properties
+from Body_Properties import Joint, Rigid_Properties, Flex_Properties
 
 
 class Structural_Analysis_PM_Rect:

@@ -12,8 +12,7 @@ from SOALIB import soalib as sb
 class Simulation:
     class Data:
         def __init__(self):
-            self.time, self.state, self.X_list, self.V_list, self.a_list, self.b_list, self.alpha_list, self.pos = [
-            ], [], [], [], [], [], [], []
+            self.time, self.state, self.X_list, self.V_list, self.a_list, self.b_list, self.alpha_list, self.pos = [], [], [], [], [], [], [], []
 
     class Setting:
         def __init__(self):
