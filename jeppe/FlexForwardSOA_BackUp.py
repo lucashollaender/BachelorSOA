@@ -11,6 +11,7 @@ from scipy.integrate import solve_ivp
 import copy
 import os
 import matplotlib as mpl
+from SOALIB.Structural_Analysis_PM_Rect import Structural_Analysis_PM_Rect
 
 # Increase limit to 100 MB (default is 20)
 plt.rcParams['animation.embed_limit'] = 1000
@@ -44,36 +45,61 @@ class Joint:
             "fixed": 0
         }[self.type]
 
-class Inertia:
+class Rigid_Properties:
 # Inertia class with m, CkJk and klOC
-    def __init__(self, m, CkJk, klOC):
+    def __init__(self, rho, CkJk, klOC):
         # Parameters
-        self.m = m
+        self.rho = rho
         self.CkJk = CkJk
         self.klOC = klOC.reshape(3, 1)
+        self.Mk = [None]
+        self.w = [None]
+        self.h = [None]
+        self.L = [None]
+    
+    def get_Mk(self, m):
+        klOC = self.klOC
+        CkJk = self.CkJk
 
-        # Spatial inertia
+        # Rigid spatial inertia
         MC = np.block([
             [np.diag(CkJk), np.zeros((3, 3))],
             [np.zeros((3, 3)), m * np.eye(3)]
         ])
-        self.Mk = sb.phi(klOC) @ MC @ sb.phi(klOC).T        
+        return sb.phi(klOC) @ MC @ sb.phi(klOC).T
 
-class Flex:
-    def __init__(self, PI, E, G, rho, n_nd, n_md):
-        self.PI = PI
+
+class Flex_Properties:
+    def __init__(self, E, G, n_nd, n_md):
         self.E = E
         self.G = G
-        self.rho = rho
         self.n_nd = n_nd
         self.n_md = n_md
         self.n_elem = self.n_nd - 1
+        self.L_elem = [None]
+        self.m_nd = [None]
         self.K_st = [None]
         self.M_nd = [None]
+        self.K_fl = [None]
+        self.M_fl = [None]
+        self.eigval = [None]
+        self.PI_r = [None]
+        self.PI_t = [None]
         self.PI = [None]
+        self.p_0 = [None]
+        self.CkJk_0 = [None]
+        self.F_0 = [None]
+        self.E_0 = [None]
+        self.G_0 = [None]
     
     def set_PI(self, PI):
         self.PI = PI
+    
+    def set_K_fl(self, K_fl):
+        self.K_fl = K_fl
+
+    def set_M_fl(self, M_fl):
+        self.M_fl = M_fl
 
 class SOABody:
 # SOAbody class
@@ -92,107 +118,32 @@ class SOABody:
                 self.theta0[3] = 1
             self.beta0 = np.zeros((joint.beta_size(), 1))
     
-    def get_K_st(self):
-        
-        # Get nodal stiffness
-        k = sb.get_stiff_mat_rect_3D(self.h, self.w, self.L, self.flex.E, self.flex.G)
-
-        # Global stiffness matrix setup
-        K_st = np.zeros((6*self.flex.n_nd, 6*self.flex.n_nd))
-
-        for i in range(self.flex.n_nd - 1):
-            k_i = np.zeros((6*self.flex.n_nd, 6*self.flex.n_nd))
-            k_i[i*6:i*6+12, i*6:i*6+12] = k
-            K_st = K_st + k_i
-        
-        return K_st
-    
-    def get_M_nd(self):
-        L_elem = self.L / self.flex.n_elem
-        m_e = self.flex.rho * self.A * L_elem
-
-        m = np.full(self.flex.n_nd, m_e)
-        m[-1], m[0] = m_e / 2, m_e / 2
-
-        block = []
-        for i in range(self.flex.n_nd):
-            block.append(np.zeros((3, 3)))
-            block.append(m[i]*np.eye((3, 3)))
-        
-        M = la.block_diag(*block)
-
-        return M
-    
-    def get_PI(self):
-
-        # Fixed BC
-        K_st = self.flex.K_st[6:, 6:]
-        M_nd = self.flex.M_nd[6:, 6:]
-
-        # Rearranging of M and K
-        index = np.zeros((0, 1))
-
-        for i in range(self.flex.n_elem):
-            index_add = np.linspace(i * 6 + 3, i * 6 + 6, 3).reshape(1, 3)
-            index = np.hstack([index, index_add])
-
-        for i in range(self.flex.n_elem):
-            index_add = np.linspace(i * 6, i * 6 + 3, 3).reshape(1, 3)
-            index = np.hstack([index, index_add])
-
-        K = K_st[np.ix_(index, index)]
-        M = M_nd[np.ix_(index, index)]
-
-        # Find K_tt, K_rr, K_tr, K_rt and M_c
-        sz = np.len(M)
-
-        K_tt = K[0:sz/2, 0:sz/2]
-        K_rr = K[sz/2:sz, sz/2:sz]
-        K_tr = K[0:sz/2, sz/2:sz]
-        K_rt = K[sz/2:sz, 0:sz/2]
-
-        M_c = M[0:sz/2, 0:sz/2]
-
-        # Find K_e
-        K_rr_inv = np.linalg.inv(K_rr)
-        K_e = K_tt - K_tr @ K_rr_inv @ K_rt
-
-        # Solve eigenvalue problem for Pi_t
-        eigval, PI_t = la.eigh(K_e, M_c, subset_by_index = (0, self.flex.n_md - 1))
-
-        PI_r = - K_rr_inv @ K_rt @ PI_t
-
-        # Pi setup
-        PI = np.zeros((PI_t.shape[1], 2 * PI_t.shape[0] + 6))
-        for i in range(self.flex.n_elem):
-            PI[i * 6 + 6:i * 6 + 9, :] = PI_r[i * 3:i * 3 + 3, :]
-            PI[i * 6 + 9:i * 6 + 12, :] = PI_t[i * 3:i * 3 + 3, :]
-        
-        return PI
-
-    def __init__(self, joint: Joint, inertia: Inertia, flex: Flex, h, w):
+    def __init__(self, joint: Joint, rigid: Rigid_Properties, flex: Flex_Properties):
+        # Import classes
         self.joint = joint
-        self.inertia = inertia
+        self.rigid = rigid
         self.flex = flex
         self.force = self.Force(self.joint)
         self.initialcondition = self.InitialCondition(self.joint)
-        self.h = h
-        self.w = w
-        self.A = h * w
-        self.L = np.linalg.norm(self.joint.klOO)
+        rigid.w = float(joint.klOO[0].flatten()[0])
+        rigid.h = float(joint.klOO[1].flatten()[0])
+        rigid.L = float(joint.klOO[2].flatten()[0])
+        rigid.A = rigid.h * rigid.w
+        self.m = rigid.rho * rigid.A * rigid.L
+        rigid.Mk = rigid.get_Mk(self.m)
 
-        # Intermidiate stiffness and mass matrix
-        self.flex.K_st = self.get_K_st(self)
-        self.flex.M_nd = self.get_M_nd(self)
-
-        # PI
+        # Structural analysis is PI == [None]
         if self.flex.PI == [None]:
-            self.flex.PI = self.get_PI()
+            body_analysis = Structural_Analysis_PM_Rect(joint.klOO, rigid.rho, flex.E, flex.G, flex.n_nd, flex.n_md)
+            
+            # PI
+            self.flex.PI = body_analysis.PI
+            self.flex.eigval = body_analysis.eigval
 
-        # Stiffness and mass matrix
-        
+            # Stiffness and mass matrix
+            self.flex.K_fl = body_analysis.K_fl
+            self.flex.M_fl = body_analysis.M_fl
 
-    
     def set_tau(self, tau):
         self.force.tau = tau
     
@@ -207,6 +158,23 @@ class SOABody:
 
     def set_initial_beta0(self, beta0):
         self.initialcondition.beta0 = beta0
+    
+    def get_D_m_inv(self, Gamma):
+        # Parameters
+        n_md = self.flex.n_md 
+
+        H_M_fl = np.hstack([np.eye(n_md, n_md), np.zeros((n_md, 6))])
+        M_fl = self.flex.M
+        PI = self.flex.PI
+        A_fl = sb.get_A(PI, self.joint.klOO)
+
+        L_fl = la.inv(H_M_fl @ M_fl @ H_M_fl)
+        zeta = H_M_fl @ A_fl
+        U_fl = L_fl @ zeta
+        D_fl = zeta.T @ U_fl
+        Gamma_inv = la.inv(Gamma)
+
+        return L_fl - la.solve((Gamma_inv + D_fl).T, U_fl.T).T @ U_fl.T
 
 class SystemState:
 # State of system class
@@ -289,11 +257,11 @@ class ATBI:
         # Set up lists
         X = [None] * n
         V = [None] * n
+        A_fl = [None] * n
         V_f = [None] * n
         V_r = [None] * n
-        a_r = [None] * n
-        b_f = [None] * n
-        b_r = [None] * n
+        a_fl = [None] * n
+        b_fl = [None] * n
 
         for k in reversed(range(n)):
             # Parameters of the body
@@ -304,31 +272,34 @@ class ATBI:
             H = body.joint.H
             Mk = body.inertia.Mk
             PI = body.flex.PI
-            K = body.flex.K
-            M = body.flex.M
-
-            A = np.vstack([PI.T, ])
+            K_fl = body.flex.K_fl
+            M_fl = body.flex.M_fl
+            n_md = body.flex.n_md
 
             # Build X
             X[k], q = self.theta2X(theta, body.joint.type, body.joint.klOO)
+
+            # Build A: NB! Typo in text?!?!
+            A_fl[k] = sb.get_A(PI, X[k][4:7])
             
             if k == n - 1:
                 V_f[k] = eta_dot
                 V_r[k] = H.T @ beta - PI @ eta_dot
             else:
-                R6 = sb.q2R(q.flatten(), 6)                
-
+                R6 = sb.q2R(q.flatten(), 6)
+                R_tot = sb.get_R_tot(R6, n_md)
+                
                 V_f[k] = eta_dot
-                V_r[k] = R6.T @ A[k+1].T @ V[k+1] + H.T @ beta - PI @ eta_dot
+                V_r[k] = R_tot.T @ A_fl[k+1].T @ V[k+1] + H.T @ beta
 
-            a[k] = self.coriolis(V[k], beta, H)
-            b[k] = self.gyroscopic(V[k], Mk)
+            a_fl[k] = np.vstack([np.zeros((n_md, 1)), self.coriolis(V_r[k], beta, H)])
+            b_fl[k] = np.vstack([np.zeros((n_md, 1)), self.gyroscopic(V_r[k], Mk)])
 
             V[k] = np.vstack([V_f[k], V_r[k]])
 
-        return X, V, a, b
+        return X, V, a_fl, b_fl
         
-    def gather_ATBI(self, a, b, X):
+    def gather_ATBI(self, state: SystemState, a_fl, b_fl, X):
         # Step 3 of ATBI (gather sweep): Takes generalized forces, Coriolis-, gyroscopic
         # terms, X-vector and system configuration and returns G and nu parameters
 
@@ -336,53 +307,94 @@ class ATBI:
         n = len(self.bodies)
 
         # Setup lists
-        P_plus = [None] * n
-        xi_plus = [None] * n
-        G = [None] * n
-        nu = [None] * n
+        P_pr_plus = [None] * n
+        D_m = [None] * n
+        g_fl = [None] * n
+        P_pr = [None] * n
+        D_pr = [None] * n
+        G_pr = [None] * n
+        nu_m = [None] * n
+        nu_pr = [None] * n
+        z_pr_plus = [None] * n
+
 
         for k in range(n):
             # Parameters of the body
             body = self.bodies[k]
-            H = body.joint.H
+            H_B = body.joint.H
             Mk = body.inertia.Mk
             sum_phi_F_ext = body.force.sum_phi_F_ext
-            tau = body.force.tau
-
+            tau_pr = body.force.tau
+            eta = state.Eta
+            M_fl = body.flex.M_fl
+            K_fl = body.flex.K_fl
+            PI = body.flex.PI
+            n_md = body.flex.n_md
+            H_M_fl = np.hstack([np.eye(n_md, n_md), np.zeros((n_md, 6))])
+            
             if k == 0:
                 # Gather loop for k = 0 (Base Case)
-                P = Mk
-                D = H @ P @ H.T
-                G[k] = np.linalg.solve(D.T, (P @ H.T).T).T
-                tau_bar = np.eye(6) - G[k] @ H
-                P_plus[k] = tau_bar @ P
-                xi = P @ a[k] + b[k] - sum_phi_F_ext
-                epsilon = tau - H @ xi
-                nu[k] = np.linalg.solve(D, epsilon)
-                xi_plus[k] = xi + G[k] @ epsilon
-                
+                # 13.6
+                Gamma = np.zeros((6, 6))
+                P_fl = M_fl
+                D_m[k] = H_M_fl @ P_fl @ H_M_fl.T
+                mu_fl = P_fl[-6:, :] @ H_M_fl.T
+                D_m_inv = body.get_D_m_inv(Gamma)
+                g_fl[k] = mu_fl @ D_m_inv
+                P_pr[k] = P_fl[-6:, -6:] - g_fl[k] @ mu_fl.T
+                D_pr[k] = H_B @ P_pr[k] @ H_B.T
+                G_pr[k] = P_pr[k] @ la.solve(D_pr[k].T, H_B).T
+                tau_pr_bar = np.eye(6, 6) - G_pr[k] @ H_B
+                P_pr_plus[k] = tau_pr_bar @ P_pr[k]
+
+                # 13.7
+                z = b_fl + K_fl @ np.vstack([eta, np.zeros((6, 1))])
+                eps_m = - z[0:n_md]  # tau_m (assumed to be zero): dim(n_md, 1)
+                nu_m[k] = D_m_inv @ eps_m
+
+                z_pr = z[-6:] + g_fl[k] @ eps_m + P_pr[k] @ a_fl[k][-6:]
+                eps_pr = tau_pr - H_B @ z_pr
+                nu_pr[k] = la.solve(D_pr[k], eps_pr)
+                z_pr_plus[k] = z_pr + G_pr[k] @ eps_pr
+
             else:
+                # 13.6
                 # Unpacking X-vector
                 q = X[k-1][0:4]
                 klOO = X[k][4:7]
 
                 # Rotation
                 R6 = sb.q2R(q.flatten(), 6)
+                R_tot = sb.get_R_tot(R6, n_md)
+
+                A_fl = sb.get_A(PI, X[k][4:7])
                 
                 # Gather loop for k > 0
-                P = sb.phi(klOO) @ R6 @ P_plus[k-1] @ R6.T @ sb.phi(klOO).T + Mk
-                D = H @ P @ H.T
-                G[k] = np.linalg.solve(D.T, (P @ H.T).T).T
-                tau_bar = np.eye(6) - G[k] @ H
-                P_plus[k] = tau_bar @ P
-                xi = sb.phi(klOO) @ R6 @ xi_plus[k-1] + P @ a[k] + b[k] - sum_phi_F_ext
-                epsilon = tau - H @ xi
-                nu[k] = np.linalg.solve(D, epsilon)
-                xi_plus[k] = xi + G[k] @ epsilon
+                Gamma_fl = R_tot @ P_pr_plus[k-1] @ R_tot.T # ?!?!?!?
+                P_fl = A_fl @ Gamma_fl @ A_fl.T + M_fl
+                D_m[k] = H_M_fl @ P_fl @ H_M_fl.T
+                mu_fl = P_fl[-6:, :] @ H_M_fl.T
+                D_m_inv = body.get_D_m_inv(Gamma)
+                g_fl[k] = mu_fl @ D_m_inv
+                P_pr[k] = P_fl[-6:, -6:] - g_fl[k] @ mu_fl.T
+                D_pr[k] = H_B @ P_pr[k] @ H_B.T
+                G_pr[k] = P_pr[k] @ la.solve(D_pr[k].T, H_B).T
+                tau_pr_bar = np.eye(6, 6) - G_pr[k] @ H_B
+                P_pr_plus[k] = tau_pr_bar @ P_pr[k]
 
-        return G, nu
+                # 13.7
+                z =  A_fl @ R6 @ z_pr_plus[k-1] + b_fl + K_fl @ np.vstack([eta, np.zeros((6, 1))])
+                eps_m = - z[0:n_md]  # tau_m (assumed to be zero): dim(n_md, 1)
+                nu_m[k] = D_m_inv @ eps_m
 
-    def scatter_ATBI(self, a, X, G, nu):
+                z_pr = z[-6:] + g_fl[k] @ eps_m + P_pr[k] @ a_fl[k][-6:]
+                eps_pr = tau_pr - H_B @ z_pr
+                nu_pr[k] = la.solve(D_pr[k], eps_pr)
+                z_pr_plus[k] = z_pr + G_pr[k] @ eps_pr
+
+        return G_pr, nu_pr, nu_m, g_fl
+
+    def scatter_ATBI(self, a_fl, X, G_pr, nu_pr, nu_m, g_fl):
         # Step 4 of ATBI (second scatter sweep): Takes Coriolis term, X-vector, G,
         # nu and hinge map, H and returns generalized acceleration, gamma
 
@@ -390,9 +402,10 @@ class ATBI:
         n = len(self.bodies)
 
         # Setup of list
-        alpha = [None] * n
-        alpha_plus = [None] * n
-        gamma = [None] * n
+        alpha_fl = [None] * n
+        theta_ddot = [None] * n
+        eta_ddot = [None] * n
+        A_fl = [None] * n
 
         # Spatial gravity
         g = np.array([0, 0, 0, 0, 0, 9.81]).reshape(6, 1)
@@ -405,7 +418,8 @@ class ATBI:
         for k in range(n - 1, -1, -1):
             # Parameters of the body
             body = self.bodies[k]
-            H = body.joint.H
+            H_B = body.joint.H
+            PI = body.flex.PI
 
             # Unpacking rotation
             q = X[k][0:4]
@@ -416,23 +430,24 @@ class ATBI:
             # Spatial gravity rotation
             Ri[k] =   Ri[k+1]  @ R6
 
+            A_fl[k] = sb.get_A(PI, X[k][4:7])
+
             if k == n - 1:
                 # Scatter loop (Tip of the chain)
-                nu_bar = nu[k] - (G[k].T @ Ri[k].T @ g)
-                gamma[k] = nu_bar
-                alpha[k] = H.T @ gamma[k] + a[k]
+                theta_ddot[k] = nu_pr[k]
+                alpha_pr = H_B @ theta_ddot[k] + a_fl[k][-6:]
+                eta_ddot[k] = nu_m[k] - g_fl[k].T @ alpha_pr
+                alpha_fl[k] = np.vstack([eta_ddot[k], alpha_pr])
             
             else:
-                # Hinge vector
-                klOO = X[k+1][4:7]
-            
                 # Scatter loop
-                alpha_plus[k] = R6.T @ sb.phi(klOO).T @ alpha[k+1]
-                nu_bar = nu[k] - (G[k].T @ Ri[k].T @ g)
-                gamma[k] = nu_bar - G[k].T @ alpha_plus[k]
-                alpha[k] = alpha_plus[k] + H.T @ gamma[k] + a[k]
+                alpha_pr_plus = A_fl[k+1].T @ R6 @ alpha_fl[k+1]
+                theta_ddot[k] = nu_pr[k] - G_pr[k].T @ alpha_pr_plus
+                alpha_pr = H_B @ theta_ddot[k] + a_fl[k][-6:]
+                eta_ddot[k] = nu_m[k] - g_fl[k].T @ alpha_pr
+                alpha_fl[k] = np.vstack([eta_ddot[k], alpha_pr])
 
-        return gamma, alpha
+        return theta_ddot, eta_ddot, alpha_fl
 
 class MultibodySystem:
     def __init__(self, bodies):
@@ -785,3 +800,6 @@ class Simulation:
 #               file_path = r"C:\Users\jepp6\OneDrive..."
 #               Choose another folder than the GIT-Hub synchronize folder, since the file will
 #               be to big and result in a "commit" error.
+
+# To DOOOOOOOOOOOOO
+# Mass import in inertia is not consistent with rho
