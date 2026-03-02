@@ -1,9 +1,10 @@
-from FlexForwardSOA import Joint, Rigid_Properties, Flex_Properties, SOABody, MultibodySystem, Simulation
+from SOABody import SOABody
+from MultibodySystem import MultibodySystem
+from Simulation import Simulation
+from Body_Properties import Joint, Rigid_Properties, Flex_Properties
 import numpy as np
 from SOALIB import soalib as sb
 import pandas as pd
-import sys
-import os
 
 h = 0.1
 w = 0.3

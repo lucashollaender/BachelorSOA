@@ -1,10 +1,7 @@
 import numpy as np
-import scipy as sp
 import scipy.linalg as la
 import pandas as pd
 from SOALIB import soalib as sb
-import copy
-import os
 
 class Structural_Analysis_PM_Rect:
     """
