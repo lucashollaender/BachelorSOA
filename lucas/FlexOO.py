@@ -175,6 +175,16 @@ class ATBI:
         elif joint_type == "fixed":
             q = np.array([[0],[0],[0],[1]])
             return np.vstack((q, klOO)), q
+        
+    def get_D_m_inv(self, Gamma, x):
+        # Calculate D_m_inv
+        if x == 0:
+            Dminv = self.flex.L_fl
+        elif x == 1:
+            Gamma_inv = la.inv(Gamma)
+            Dminv = self.flex.L_fl - self.flex.U_fl@la.solve((np.eye(6,6)+Gamma@self.flex.D_fl), Gamma) @ self.flex.U_fl.T
+        return Dminv
+
 
     def scatter_kinematics(self, state: SystemState):
         
