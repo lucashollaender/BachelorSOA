@@ -2,6 +2,7 @@ import numpy as np
 import scipy.linalg as la
 from SOALIB import soalib as sb
 from SystemState import SystemState
+import pandas as pd
 
 
 class ATBI_Flex:
@@ -78,7 +79,7 @@ class ATBI_Flex:
             # Build A: NB! Typo in text?!?!
             R3 = sb.q2R(q.flatten(), 3)
             A_fl[k] = sb.get_A(PI, R3.T @ X[k][4:7])
-            
+
             if k == n - 1:
                 V_f[k] = eta_dot
                 V_r[k] = H.T @ beta
@@ -87,7 +88,7 @@ class ATBI_Flex:
                 R_tot = sb.get_R_tot(R6, n_md)
 
                 V_f[k] = eta_dot
-                V_r[k] =  A_fl[k+1].T @ R_tot.T @ V[k+1] + H.T @ beta
+                V_r[k] = A_fl[k+1].T @ R_tot.T @ V[k+1] + H.T @ beta
 
             a_fl[k] = np.vstack(
                 [np.zeros((n_md, 1)), self.coriolis(V_r[k], beta, H)])
@@ -98,7 +99,7 @@ class ATBI_Flex:
 
         return X, V, a_fl, b_fl
 
-    def gather_ATBI(self, state: SystemState, a_fl, b_fl, X):
+    def gather_ATBI(self, state: SystemState, a_fl, b_fl, X, t):
         # Step 3 of ATBI (gather sweep): Takes generalized forces, Coriolis-, gyroscopic
         # terms, X-vector and system configuration and returns G and nu parameters
 
@@ -120,8 +121,7 @@ class ATBI_Flex:
             # Parameters of the body
             body = self.bodies[k]
             H_B = body.joint.H
-            Mk = body.rigid.Mk
-            sum_phi_F_ext = body.force.sum_phi_F_ext
+            F_ext = body.force.F_ext
             tau_pr = body.force.tau
             eta = state.Eta[k]
             M_fl = body.flex.M_fl
@@ -129,6 +129,13 @@ class ATBI_Flex:
             PI = body.flex.PI_end
             n_md = body.flex.n_md
             H_M_fl = np.hstack([np.eye(n_md, n_md), np.zeros((n_md, 6))])
+            klOO = X[k][4:7]
+
+            # External force
+            F_ext_term = np.zeros((b_fl[k].shape[0], 1))
+
+            if t <= 0.25:
+                F_ext_term = np.vstack([PI.T @ F_ext, sb.phi(klOO) @ F_ext])
 
             if k == 0:
                 # Gather loop for k = 0 (Base Case)
@@ -146,7 +153,8 @@ class ATBI_Flex:
                 P_pr_plus[k] = tau_pr_bar @ P_pr[k]
 
                 # 13.7
-                z = b_fl[k] + K_fl @ np.vstack([eta, np.zeros((6, 1))])
+                z = b_fl[k] + \
+                    K_fl @ np.vstack([eta, np.zeros((6, 1))]) - F_ext_term
                 eps_m = - z[0:n_md]  # tau_m (assumed to be zero): dim(n_md, 1)
                 nu_m[k] = D_m_inv @ eps_m
 
@@ -159,15 +167,14 @@ class ATBI_Flex:
                 # 13.6
                 # Unpacking X-vector
                 q = X[k-1][0:4]
-                klOO = X[k][4:7]
 
                 # Rotation
                 R6 = sb.q2R(q.flatten(), 6)
-                
+
                 A_fl = sb.get_A(PI, klOO)
 
                 # Gather loop for k > 0
-                Gamma_fl = R6 @ P_pr_plus[k-1] @ R6.T # ?!?!?!?
+                Gamma_fl = R6 @ P_pr_plus[k-1] @ R6.T  # ?!?!?!?
                 P_fl = A_fl @ Gamma_fl @ A_fl.T + M_fl
                 D_m[k] = H_M_fl @ P_fl @ H_M_fl.T
                 mu_fl = P_fl[-6:, :] @ H_M_fl.T
@@ -180,7 +187,8 @@ class ATBI_Flex:
                 P_pr_plus[k] = tau_pr_bar @ P_pr[k]
 
                 # 13.7
-                z =  A_fl @ R6 @ z_pr_plus[k-1] + b_fl[k] + K_fl @ np.vstack([eta, np.zeros((6, 1))])
+                z = A_fl @ R6 @ z_pr_plus[k-1] + b_fl[k] + \
+                    K_fl @ np.vstack([eta, np.zeros((6, 1))]) - F_ext_term
                 eps_m = - z[0:n_md]  # tau_m (assumed to be zero): dim(n_md, 1)
                 nu_m[k] = D_m_inv @ eps_m
 
@@ -229,12 +237,12 @@ class ATBI_Flex:
             # Spatial gravity rotation
             Ri[k] = Ri[k+1]  @ R6
 
-            A_fl[k] = sb.get_A(PI, R3 @ X[k][4:7])
+            A_fl[k] = sb.get_A(PI, R3.T @ X[k][4:7])
 
             if k == n - 1:
                 # Scatter loop (Tip of the chain)
                 theta_ddot[k] = nu_pr[k]
-                alpha_pr = H_B @ theta_ddot[k] + a_fl[k][-6:]
+                alpha_pr = H_B.T @ theta_ddot[k] + a_fl[k][-6:]
                 eta_ddot[k] = nu_m[k] - g_fl[k].T @ alpha_pr
                 alpha_fl[k] = np.vstack([eta_ddot[k], alpha_pr])
 
@@ -244,7 +252,7 @@ class ATBI_Flex:
 
                 alpha_pr_plus = A_fl[k+1].T @ R_tot.T @ alpha_fl[k+1]
                 theta_ddot[k] = nu_pr[k] - G_pr[k].T @ alpha_pr_plus
-                alpha_pr = H_B @ theta_ddot[k] + a_fl[k][-6:]
+                alpha_pr = alpha_pr_plus + H_B.T @ theta_ddot[k] + a_fl[k][-6:]
                 eta_ddot[k] = nu_m[k] - g_fl[k].T @ alpha_pr
                 alpha_fl[k] = np.vstack([eta_ddot[k], alpha_pr])
 

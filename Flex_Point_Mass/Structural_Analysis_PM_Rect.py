@@ -2,7 +2,7 @@ import numpy as np
 import scipy.linalg as la
 import pandas as pd
 from SOALIB import soalib as sb
-from Body_Properties import Joint, Rigid_Properties, Flex_Properties
+from Body_Properties import Rigid_Properties, Flex_Properties
 
 
 class Structural_Analysis_PM_Rect:
@@ -22,8 +22,8 @@ class Structural_Analysis_PM_Rect:
         # Parameters
         w = self.w
         h = self.h
-        a = w
-        b = h
+        a = w / 2
+        b = h / 2
         L = self.L
         E = self.E
         G = self.G
@@ -64,8 +64,7 @@ class Structural_Analysis_PM_Rect:
         # Stiffness matrix
         diag = [None] * 6
 
-        diag[0] = np.array(
-            [Z, X_1, Y_1, S, Y_3, X_3, Z, X_1, Y_1, S, Y_3, X_3])
+        diag[0] = np.array([Z, X_1, Y_1, S, Y_3, X_3, Z, X_1, Y_1, S, Y_3, X_3])
         diag[1] = np.array([0, 0, -Y_2, 0, 0, -X_2, 0, 0, Y_2, 0])
         diag[2] = np.array([0, X_2, 0, 0, Y_2, 0, 0, -X_2])
         diag[3] = np.array([-Z, -X_1, -Y_1, -S, Y_4, X_4])
@@ -153,9 +152,6 @@ class Structural_Analysis_PM_Rect:
         # Find K_e (np.linalg.inv(K_rr) * K_rt)
         X = la.solve(K_rr, K_rt, assume_a="sym")
         K_c = K_tt - K_tr @ X
-
-        print(np.linalg.norm(M_c))
-        print(np.linalg.norm(K_c))
 
         # Solve eigenvalue problem for Pi_t (Mass normalized!)
         eigval, PI_t = la.eigh(K_c, M_c, subset_by_index=(0, self.n_md - 1))
@@ -248,10 +244,10 @@ class Structural_Analysis_PM_Rect:
 
         return np.vstack([rw1, rw2, rw3])
 
-    def __init__(self, joint: Joint, rigid: Rigid_Properties, flex: Flex_Properties):
-        self.w = float(joint.klOO[0].flatten()[0])
-        self.h = float(joint.klOO[1].flatten()[0])
-        self.L = float(joint.klOO[2].flatten()[0])
+    def __init__(self, rigid: Rigid_Properties, flex: Flex_Properties):
+        self.w = rigid.w
+        self.h = rigid.h
+        self.L = rigid.L
         self.A = rigid.w * rigid.h
         self.m = rigid.rho * self.A * self.L
         self.E = flex.E
