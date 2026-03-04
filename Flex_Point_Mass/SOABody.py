@@ -38,10 +38,10 @@ class SOABody:
         self.flex = flex
         self.force = self.Force(self.joint)
         self.initialcondition = self.InitialCondition(joint, flex)
-        rigid.L = float(np.linalg.norm(joint.klOO))
         rigid.A = rigid.h * rigid.w
-        self.m = rigid.rho * rigid.A * rigid.L
-        self.rigid.CkJk = np.array([1/12 * self.m * (rigid.h**2 + rigid.L**2), 1/12 * self.m * (rigid.w**2 + rigid.L**2), 1/12 * self.m * (rigid.h**2 + rigid.w**2)])
+        rigid.L = joint.L
+        self.m = rigid.rho * rigid.A * joint.L
+        self.rigid.CkJk = np.array([1/12 * self.m * (rigid.h**2 + rigid.w**2), 1/12 * self.m * (rigid.h**2 + joint.L**2), 1/12 * self.m * (rigid.w**2 + joint.L**2)])
         rigid.Mk = rigid.get_Mk(self.m, self.rigid.CkJk)
 
         # Structural analysis is PI == [None] (Point mass: Rectangular cross section)

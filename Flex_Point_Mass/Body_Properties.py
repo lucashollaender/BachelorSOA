@@ -5,11 +5,12 @@ from SOALIB import soalib as sb
 
 class Joint:
 # Joint class with H_type, H and klOO
-    def __init__(self, klOO, H_type: str):
+    def __init__(self, L, H_type: str):
         # Parameters
         self.type = H_type
         self.H = sb.hinge_map(H_type)
-        self.klOO = klOO.reshape(3, 1)
+        self.L = L
+        self.klOO = np.array([L, 0, 0]).reshape(3, 1)
 
     # Unpacking size
     def theta_size(self):

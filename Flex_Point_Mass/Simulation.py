@@ -40,7 +40,9 @@ class Simulation:
             t_span=(0, self.tf),
             y0=self.system.S0,
             t_eval=t_eval,
-            method="RK45"
+            method="Radau",
+            rtol = 1e-6,
+            atol = 1e-9
         )
 
         print("Integration successful!")
@@ -128,7 +130,7 @@ class Simulation:
 
             for j in range(n_nd):
                 # 1. Undeformed position in local frame (Structural analysis assumes beam along Z-axis)
-                p_und = np.array([[0], [0], [j * L_elem]])
+                p_und = np.array([[j * L_elem], [0], [0]])
 
                 # 2. Translational deformation for node j
                 # (Translations are stored at indices j*6+3 to j*6+6 in the PI matrix)
@@ -186,9 +188,9 @@ class Simulation:
         if max_range == 0:
             max_range = 1.0
 
-        ax.set_xlim(-5, 5)
-        ax.set_ylim(-5, 5)
-        ax.set_zlim(0, 7)
+        ax.set_xlim(-2, 7)
+        ax.set_ylim(-2, 2)
+        ax.set_zlim(-2, 2)
 
         ax.set_xlabel('X')
         ax.set_ylabel('Y')
