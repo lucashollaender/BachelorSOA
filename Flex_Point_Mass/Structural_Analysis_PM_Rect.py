@@ -22,8 +22,8 @@ class Structural_Analysis_PM_Rect:
         # Parameters
         w = self.w
         h = self.h
-        a = w
-        b = h
+        a = w/2
+        b = h/2
         L = self.L
         E = self.E
         G = self.G

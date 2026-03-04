@@ -13,7 +13,8 @@ import pandas as pd
 class Simulation:
     class Data:
         def __init__(self):
-            self.time, self.state, self.X_list, self.V_list, self.a_list, self.b_list, self.alpha_list, self.pos = [], [], [], [], [], [], [], []
+            self.time, self.state, self.X_list, self.V_list, self.a_list, self.b_list, self.alpha_list, self.pos = [
+            ], [], [], [], [], [], [], []
 
     class Setting:
         def __init__(self):
@@ -51,13 +52,17 @@ class Simulation:
         # Find X-vector for each time step
         for i in range(len(self.data.time)):
 
-            # Unpack state            
-            current_state = SystemState.unpack(states[i].reshape(-1, 1), [b.joint for b in self.system.bodies], [b.flex for b in self.system.bodies])
-            
+            # Unpack state
+            current_state = SystemState.unpack(
+                states[i].reshape(-1, 1), [b.joint for b in self.system.bodies], [b.flex for b in self.system.bodies])
+
             # Kinematic scatter loop to find X
-            X, V, a_fl, b_fl = self.system.ATBI.scatter_kinematics(current_state)
-            G_pr, nu_pr, nu_m, g_fl = self.system.ATBI.gather_ATBI(current_state, a_fl, b_fl, X, self.data.time[i])
-            _, _, alpha = self.system.ATBI.scatter_ATBI(a_fl, X, G_pr, nu_pr, nu_m, g_fl)
+            X, V, a_fl, b_fl = self.system.ATBI.scatter_kinematics(
+                current_state)
+            G_pr, nu_pr, nu_m, g_fl = self.system.ATBI.gather_ATBI(
+                current_state, a_fl, b_fl, X, self.data.time[i])
+            _, _, alpha = self.system.ATBI.scatter_ATBI(
+                a_fl, X, G_pr, nu_pr, nu_m, g_fl)
 
             # Add to list
             self.data.state.append(current_state)
@@ -96,55 +101,54 @@ class Simulation:
     def camera_hor(self, x):
         self.setting.camera_hor = x
 
-
     def nNodalPos(self):
         t = self.data.time
         X = self.data.X_list
-        
+
         # Access body 1 (index 0) parameters
         body = self.system.bodies[0]
         n_nd = body.flex.n_nd
         PI = body.flex.PI
         L = body.rigid.L
         L_elem = L / (n_nd - 1)
-        
+
         nt = len(t)
         nodal_pos = []
-        
+
         for i in range(nt):
             state = self.data.state[i]
             eta = state.Eta[0]
-            
+
             # Base translation (account for free joint if applicable)
             dxyz = np.zeros((3, 1))
             if body.joint.type == "free":
                 dxyz = state.Theta[0][4:7].reshape(3, 1)
-                
+
             nodes_at_t = []
-            
+
             for j in range(n_nd):
                 # 1. Undeformed position in local frame (Structural analysis assumes beam along Z-axis)
                 p_und = np.array([[0], [0], [j * L_elem]])
-                
+
                 # 2. Translational deformation for node j
                 # (Translations are stored at indices j*6+3 to j*6+6 in the PI matrix)
                 # Define a small tolerance based on your dt
-                tolerance = 1e-6 
+                tolerance = 1e-6
 
                 # Check if the current time is very close to an integer
-                x = 1
+                """x = 1
                 if i % 20 == 0 and j == n_nd-1 and x == 1:
                     print(pd.DataFrame(eta))
                     print(pd.DataFrame(PI[j*6+3 : j*6+6, :]))
-                
-                u_j = PI[j*6+3 : j*6+6, :] @ eta
-                
+                """
+                u_j = PI[j*6+3: j*6+6, :] @ eta
+
                 # 3. Global position of node j
                 p_glob = dxyz + (p_und + u_j)
                 nodes_at_t.append(p_glob)
-                
+
             nodal_pos.append(nodes_at_t)
-            
+
         return nodal_pos
 
     def animate_nodes(self, filename="", save_dir=""):
@@ -155,7 +159,7 @@ class Simulation:
 
         # Get nodal positions for the flexible beam
         nodal_pos = self.nNodalPos()
-        
+
         if not nodal_pos:
             print("Error: No nodal position data found. Did you run the integration?")
             return
@@ -170,16 +174,16 @@ class Simulation:
         # Determine Axis Limits dynamically based on node movement
         all_points = []
         # Sample frames to speed up boundary calculation
-        step = max(1, nt // 50) 
-        for i in range(0, nt, step):  
+        step = max(1, nt // 50)
+        for i in range(0, nt, step):
             for node in nodal_pos[i]:
                 all_points.append(node.flatten())
 
         all_points = np.array(all_points)
         max_range = np.abs(all_points).max()
-        
+
         # Prevent zero-range if the beam doesn't move
-        if max_range == 0: 
+        if max_range == 0:
             max_range = 1.0
 
         ax.set_xlim(-5, 5)
@@ -192,7 +196,8 @@ class Simulation:
         ax.set_title(f"Flexible Beam Animation ({n_nd} Nodes)")
 
         # Create a single line representing the continuous flexible beam
-        beam_line, = ax.plot([], [], [], '-', lw=4, color='blue', marker='o', markersize=4)
+        beam_line, = ax.plot([], [], [], '-', lw=4,
+                             color='blue', marker='o', markersize=4)
 
         # Plot origin for reference
         ax.plot([0], [0], [0], 'o', color='gray', markersize=6)
@@ -216,7 +221,7 @@ class Simulation:
             time_text.set_text(f'Time: {t[frame_idx]:.2f} s')
 
             # Handle camera rotation settings
-            ax.view_init(elev=self.setting.camera_ver, 
+            ax.view_init(elev=self.setting.camera_ver,
                          azim=frame_idx * self.setting.camera_speed * 40 * dt + self.setting.camera_hor)
 
             return beam_line, time_text
