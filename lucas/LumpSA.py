@@ -4,6 +4,67 @@ import scipy.linalg as la
 import pandas as pd
 from SOALIB import soalib as sb
 
+def get_stiff_mat_rect_3D(h, w, L, E, G):
+        # b < a // h < w, w = y, h = z
+        # Parameters
+    a = w / 2
+    b = h / 2
+
+        # Book -> code
+        # x -> z
+        # y -> x
+        # z -> y
+
+        # Rectangular cross-section
+    k_y = 1.2
+    k_z = k_y
+    K = a * b**3 * (16/3 - 3.36 * a / b * (1 - a**4 / (12 * b**4)))
+    A = w*h
+    I_y = w * h**3 / 12
+    I_z = h * w**3 / 12
+
+        # Factors
+    phi_y = 12 * E * I_z * k_y / (A * G * L**2)
+    phi_z = 12 * E * I_y * k_z / (A * G * L**2)
+    S = G * K / L
+
+        # X
+    X = A * E / L
+
+        # Y
+    Y_1 = 12 * E * I_z / ((1 + phi_y) * L**3)
+    Y_2 = 6 * E * I_z / ((1 + phi_y) * L**2)
+    Y_3 = (4 + phi_y) * E * I_z / ((1 + phi_y) * L)
+    Y_4 = (2 - phi_y) * E * I_z / ((1 + phi_y) * L)
+
+        # Z
+    Z_1 = 12 * E * I_y / ((1 + phi_z) * L**3)
+    Z_2 = 6 * E * I_y / ((1 + phi_z) * L**2)
+    Z_3 = (4 + phi_z) * E * I_y / ((1 + phi_z) * L)
+    Z_4 = (2 - phi_z) * E * I_y / ((1 + phi_z) * L)
+
+        # Stiffness matrix
+    diag = [None] * 6
+
+    diag[0] = np.array([X, Y_1, Z_1, S, Z_3, Y_3, X, Y_1, Z_1, S, Z_3, Y_3])
+    diag[1] = np.array([0, 0, -Z_2, 0, 0, -Y_2, 0, 0, Z_2, 0])
+    diag[2] = np.array([0, Y_2, 0, 0, Z_2, 0, 0, -Y_2])
+    diag[3] = np.array([-X, -Y_1, -Z_1, -S, Z_4, Y_4])
+    diag[4] = np.array([0, 0, -Z_2, 0])
+    diag[5] = np.array([0, Y_2])
+
+    k = np.diag(diag[0], k=0)
+
+    for i in range(1, 6):
+        k = k + np.diag(diag[i], k=-2*i) + np.diag(diag[i], k=2*i)
+
+        # Change so rotations first is along
+    perm = [3, 4, 5, 0, 1, 2, 9, 10, 11, 6, 7, 8]
+
+    k_perm = k[np.ix_(perm, perm)]
+
+    return k_perm
+
 def solve_condensed_eigen_reduced(Kred, Mred, nmodes=6, ndpn=6, rot_reg=0.0, mass_normalize=False):
     """
     Solve eigenproblem from already-BC-reduced matrices (fixed DOFs removed).
@@ -86,11 +147,11 @@ def mass_matrix_pointmass(nd,rho,A,L):
     M = la.block_diag(*blocks)
     return M
 
-def modalIntegrals_zero(nd,md,rho,A,L,gamma):
+def modalIntegrals_zero(nd,rho,A,L,gamma):
     n_elms = nd - 1
     L_e = L / n_elms
-    lkOkj = [np.array([0.0, 0.0, i * L_e]) for i in range(nd)]
-    print(lkOkj)
+    lkOkj = [np.array([i * L_e, 0.0, 0.0]) for i in range(nd)]
+    md = gamma.shape[1]
     m_e = rho * A * L_e
     m_tot=rho * A *L
     m = np.full(nd, m_e)
@@ -106,25 +167,42 @@ def modalIntegrals_zero(nd,md,rho,A,L,gamma):
     J0=-sum_j0
     F0 = np.zeros((3, md))
     E0 = np.zeros((3, md))
-
+    p1 = np.zeros((3, md))
+    sum_j1 = np.zeros((3,3))
+    J1=np.zeros((3,3*md))
     for j in range(md):
+        sum_p1 = np.zeros(3)
+        sum_j1 = np.zeros((3,3))
         for i in range(nd):
-            gamma_i = gamma[3*i:3*(i+1), j]          # (3,)
-            F0[:, j] += m[i] * (sb.skew(lkOkj[i]) @ gamma_i)
+            gamma_i = gamma[3*i:3*(i+1), j]
+            F0[:, j] += m[i] * sb.skew(lkOkj[i]) @ gamma_i
             E0[:, j] += m[i] * gamma_i
+            sum_p1 += m[i]*gamma_i
+            sum_j1 += m[i]*sb.skew(gamma_i)@sb.skew(lkOkj[i])
+        p1[:, j] += 1/m_tot * sum_p1
+        J1[:, 3*j:3*(j+1)] = -sum_j1
 
     G0 = np.zeros((md, md), dtype=gamma.dtype)
-
+    sum_j2 = np.zeros((3,3))
+    J2=np.zeros((3*md,3*md))
+    sum_F1 = np.zeros((3, 1))
+    F1= np.zeros((3*md, md))
     for r in range(md):
         for s in range(md):
+            sum_j2 = np.zeros((3,3))
+            sum_F1 = np.zeros(3)
             G0sum = 0.0
             for i in range(nd):
-                g_r = gamma[3*i:3*(i+1), r]   # (3,)
-                g_s = gamma[3*i:3*(i+1), s]   # (3,)
+                g_r = gamma[3*i:3*(i+1), r]
+                g_s = gamma[3*i:3*(i+1), s]
                 # "scalar" product for node i:
                 G0sum += m[i] * np.dot(g_r.T, g_s)
+                sum_j2 += m[i]*sb.skew(g_r)@sb.skew(g_s)
+                sum_F1 += m[i]*sb.skew(g_r)@g_s
             G0[r, s] = G0sum
-    return G0, E0, F0, p0, J0, m_tot
+            J2[3*r:3*(r+1), 3*s:3*(s+1)] = -sum_j2
+            F1[3*r:3*(r+1), s] = -sum_F1
+    return G0, E0, F0, p0, J0, m_tot, p1, J1, J2, F1
 
 def build_Mfl(G, F0, E0, J0, p0, m_tot):
     md = G.shape[0]
@@ -186,7 +264,7 @@ if __name__ == "__main__":
     E = 230e9
     G = 80e9
     h=0.1
-    w=0.3
+    w=0.1
     rho=7850
     L=5
     n_nd=4
@@ -194,7 +272,7 @@ if __name__ == "__main__":
     L_e = L / n_elms
     M=mass_matrix_pointmass(n_nd,rho,h*w,L)
     # element stiffness list (3 elements)
-    k=sb.get_stiff_mat_rect_3D(h, w, L, E, G)   
+    k=get_stiff_mat_rect_3D(h, w, L_e, E, G)   
     # Global stiffness matrix setup
     K_st = np.zeros((6*n_nd, 6*n_nd))
 
@@ -206,8 +284,8 @@ if __name__ == "__main__":
     Kred = K_st[6:, 6:]
     Mred = M[6:, 6:]
 
-    results = solve_condensed_eigen_reduced(Kred, Mred, nmodes=7, ndpn=6)
-
+    results = solve_condensed_eigen_reduced(Kred, Mred, nmodes=4, ndpn=6)
+    print(pd.DataFrame(K_st))
     print("\nEigenvalues:")
     df0 = pd.DataFrame(results["omega2"])
     print(df0)
@@ -220,25 +298,29 @@ if __name__ == "__main__":
     df1 = pd.DataFrame(results["lambda_rot"])
     print(df1)
 
-    G0, E0, F0, p0, J0, m_tot=modalIntegrals_zero(n_nd,7,rho,h*w,L,results["gamma"])
+    G0, E0, F0, p0, J0, m_tot, p1, J1, J2, F1=modalIntegrals_zero(n_nd,rho,h*w,L,results["gamma"])
 
     Gprint=pd.DataFrame(G0)
     Eprint=pd.DataFrame(E0)
     Fprint=pd.DataFrame(F0)
     pprint=pd.DataFrame(p0)
     Jprint=pd.DataFrame(J0)
+    print("p0")
+    print(pd.DataFrame(p0))
+    print("E0")
+    print(pd.DataFrame(E0))
+    print("F0")
+    print(pd.DataFrame(F0))
+    print("J1")
+    print(pd.DataFrame(J1))
+    print("p1")
+    print(pd.DataFrame(p1))
+    print("J2")
+    print(pd.DataFrame(J2))
+    print("F1")
+    print(pd.DataFrame(F1))
 
-    print("G")
-    print(Gprint)
-    print("E")
-    print(Eprint)
-    print("F")
-    print(Fprint)
-    print("p")
-    print(pprint)
-    print("J")
-    print(Jprint)
-
+    """
     M_fl=build_Mfl(G0, F0, E0, J0, p0, m_tot)
     mflprinttot=pd.DataFrame(M_fl)
     mflprint=pd.DataFrame(M_fl[-6:,-6:])
@@ -250,3 +332,4 @@ if __name__ == "__main__":
     Pi = np.vstack((np.zeros((6, Pi.shape[1])), Pi))
 
     Kmodal=Pi.T@K_st@Pi
+    """
