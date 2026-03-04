@@ -14,7 +14,11 @@ klOC = np.array([2.5, 0, 0])
 
 # n_md_max = (n_nd - 1) * 3
 
+<<<<<<< HEAD
 E, G, rho, n_nd, n_md = 230e9, 80e9, 7850, 12, 12
+=======
+E, G, rho, n_nd, n_md = 230e9, 80e9, 7850, 20, 10
+>>>>>>> 21387c7e2a146da53f6dd30f2d94e4a981abb473
 
 w, h = 0.1, 0.1
 

@@ -5,6 +5,7 @@ from SOALIB import soalib as sb
 from scipy.integrate import solve_ivp
 from Structural_Analysis_PM_Rect import Structural_Analysis_PM_Rect
 from Body_Properties import Joint, Rigid_Properties, Flex_Properties
+import pandas as pd
 
 # Increase limit to 100 MB (default is 20)
 plt.rcParams['animation.embed_limit'] = 1000
@@ -30,7 +31,7 @@ class SOABody:
             # Setup of initial conditions for eta and eta_dot
             self.eta0 = np.zeros((flex.n_md, 1))
             self.eta_dot0 = np.zeros((flex.n_md, 1))
-    
+
     def __init__(self, joint: Joint, rigid: Rigid_Properties, flex: Flex_Properties):
         # Import classes
         self.joint = joint
@@ -42,12 +43,38 @@ class SOABody:
         rigid.L = joint.L
         flex.L_elem = joint.L / flex.n_elem
         self.m = rigid.rho * rigid.A * joint.L
-        self.rigid.CkJk = np.array([1/12 * self.m * (rigid.h**2 + rigid.w**2), 1/12 * self.m * (rigid.h**2 + joint.L**2), 1/12 * self.m * (rigid.w**2 + joint.L**2)])
+        self.rigid.CkJk = np.array([1/12 * self.m * (rigid.h**2 + rigid.w**2), 1/12 * self.m * (
+            rigid.h**2 + joint.L**2), 1/12 * self.m * (rigid.w**2 + joint.L**2)])
         rigid.Mk = rigid.get_Mk(self.m, self.rigid.CkJk)
 
         # Structural analysis is PI == [None] (Point mass: Rectangular cross section)
         if self.flex.PI == [None]:
             body_analysis = Structural_Analysis_PM_Rect(rigid, flex)
+
+            print("p_0")
+            print(pd.DataFrame(body_analysis.p_0))
+            print("p_1")
+            print(pd.DataFrame(body_analysis.p_1))
+            print("CkJk_0")
+            print(pd.DataFrame(body_analysis.CkJk_0))
+            print("CkJk_1")
+            print(pd.DataFrame(body_analysis.CkJk_1))
+            print("CkJk_2")
+            print(pd.DataFrame(body_analysis.CkJk_2))
+            print("F_0")
+            print(pd.DataFrame(body_analysis.F_0))
+            print("F_1")
+            print(pd.DataFrame(body_analysis.F_1))
+            print("G_0")
+            print(pd.DataFrame(body_analysis.G_0))
+            print("E_0")
+            print(pd.DataFrame(body_analysis.E_0))
+            print("eig")
+            print(pd.DataFrame(body_analysis.eigval))
+            print("PI_t")
+            print(pd.DataFrame(body_analysis.PI_t))
+            print("K_st")
+            print(pd.DataFrame(body_analysis.K_st))
 
             # PI
             self.flex.PI = body_analysis.PI
@@ -57,9 +84,10 @@ class SOABody:
             # Stiffness and mass matrix
             self.flex.K_fl = body_analysis.K_fl
             self.flex.M_fl = body_analysis.M_fl
-        
+
         # D_m invers (offline)
-        H_M_fl = np.hstack([np.eye(self.flex.n_md, self.flex.n_md), np.zeros((self.flex.n_md, 6))])
+        H_M_fl = np.hstack(
+            [np.eye(self.flex.n_md, self.flex.n_md), np.zeros((self.flex.n_md, 6))])
         A_fl = sb.get_A(self.flex.PI_end, self.joint.klOO)
         self.flex.L_fl = la.inv(H_M_fl @ self.flex.M_fl @ H_M_fl.T)
         zeta = H_M_fl @ A_fl
@@ -77,12 +105,14 @@ class SOABody:
 
     def set_initial_beta0(self, beta0):
         self.initialcondition.beta0 = beta0
-    
+
     def get_D_m_inv(self, Gamma, x):
         # Calculate D_m_inv
         if x == 0:
             Dminv = self.flex.L_fl
         elif x == 1:
             Gamma_inv = la.inv(Gamma)
-            Dminv = self.flex.L_fl - la.solve((Gamma_inv + self.flex.D_fl).T, self.flex.U_fl.T).T @ self.flex.U_fl.T
+            Dminv = self.flex.L_fl - \
+                la.solve((Gamma_inv + self.flex.D_fl).T,
+                         self.flex.U_fl.T).T @ self.flex.U_fl.T
         return Dminv
