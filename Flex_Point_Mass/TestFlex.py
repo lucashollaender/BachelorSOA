@@ -10,7 +10,7 @@ L = 5
 H_type1 = "fixed"
 
 m = 1
-klOC = np.array([0, 0, 2.5])
+klOC = np.array([2.5, 0, 0])
 
 # n_md_max = (n_nd - 1) * 3
 

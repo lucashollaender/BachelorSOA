@@ -40,9 +40,7 @@ class Simulation:
             t_span=(0, self.tf),
             y0=self.system.S0,
             t_eval=t_eval,
-            method="Radau",
-            rtol = 1e-6,
-            atol = 1e-9
+            method="RK45"
         )
 
         print("Integration successful!")
