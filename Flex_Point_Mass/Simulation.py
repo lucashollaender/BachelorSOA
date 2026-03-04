@@ -40,9 +40,7 @@ class Simulation:
             t_span=(0, self.tf),
             y0=self.system.S0,
             t_eval=t_eval,
-            method="Radau",
-            rtol = 1e-6,
-            atol = 1e-9
+            method="RK45",
         )
 
         print("Integration successful!")
@@ -141,8 +139,8 @@ class Simulation:
                 x = 0
                 if i % 20 == 0 and j == n_nd-1 and x == 1:
                     print(pd.DataFrame(eta))
-                    print(pd.DataFrame(PI[j*6+3 : j*6+6, :]))
-                
+                    print(pd.DataFrame(PI[j*6+3: j*6+6, :]))
+
                 u_j = PI[j*6+3: j*6+6, :] @ eta
 
                 # 3. Global position of node j
