@@ -204,7 +204,7 @@ class Structural_Analysis_PM_Rect:
 
         for i in range(n_nd):
             # Parameters
-            klkO = np.array([0, 0, i * L_elem]).reshape(3, 1)
+            klkO = np.array([i * L_elem, 0, 0]).reshape(3, 1)
             klkO_skew = sb.skew(klkO)
 
             # Compute sums

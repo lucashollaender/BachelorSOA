@@ -5,6 +5,7 @@ from SOALIB import soalib as sb
 from scipy.integrate import solve_ivp
 from Structural_Analysis_PM_Rect import Structural_Analysis_PM_Rect
 from Body_Properties import Joint, Rigid_Properties, Flex_Properties
+import pandas as pd
 
 # Increase limit to 100 MB (default is 20)
 plt.rcParams['animation.embed_limit'] = 1000
@@ -50,23 +51,29 @@ class SOABody:
             body_analysis = Structural_Analysis_PM_Rect(rigid, flex)
 
             print("p_0")
-            print(body_analysis.p_0)
+            print(pd.DataFrame(body_analysis.p_0))
             print("p_1")
-            print(body_analysis.p_1)
+            print(pd.DataFrame(body_analysis.p_1))
             print("CkJk_0")
-            print(body_analysis.CkJk_0)
+            print(pd.DataFrame(body_analysis.CkJk_0))
             print("CkJk_1")
-            print(body_analysis.CkJk_1)
-            print("CkJk_1")
-            print(body_analysis.CkJk_2)
+            print(pd.DataFrame(body_analysis.CkJk_1))
+            print("CkJk_2")
+            print(pd.DataFrame(body_analysis.CkJk_2))
             print("F_0")
-            print(body_analysis.F_0)
+            print(pd.DataFrame(body_analysis.F_0))
             print("F_1")
-            print(body_analysis.F_1)
+            print(pd.DataFrame(body_analysis.F_1))
             print("G_0")
-            print(body_analysis.G_0)
+            print(pd.DataFrame(body_analysis.G_0))
             print("E_0")
-            print(body_analysis.E_0)
+            print(pd.DataFrame(body_analysis.E_0))
+            print("eig")
+            print(pd.DataFrame(body_analysis.eigval))
+            print("PI_t")
+            print(pd.DataFrame(body_analysis.PI_t))
+            print("K_st")
+            print(pd.DataFrame(body_analysis.K_st))
 
             # PI
             self.flex.PI = body_analysis.PI
