@@ -4,6 +4,7 @@ from SOALIB import soalib as sb
 from SystemState import SystemState
 import pandas as pd
 
+
 class ATBI_Flex:
     # ATBI class with bodies
     def __init__(self, bodies):
@@ -78,7 +79,7 @@ class ATBI_Flex:
             # Build A: NB! Typo in text?!?!
             R3 = sb.q2R(q.flatten(), 3)
             A_fl[k] = sb.get_A(PI, R3.T @ X[k][4:7])
-            
+
             if k == n - 1:
                 V_f[k] = eta_dot
                 V_r[k] = H.T @ beta
@@ -87,7 +88,7 @@ class ATBI_Flex:
                 R_tot = sb.get_R_tot(R6, n_md)
 
                 V_f[k] = eta_dot
-                V_r[k] =  A_fl[k+1].T @ R_tot.T @ V[k+1] + H.T @ beta
+                V_r[k] = A_fl[k+1].T @ R_tot.T @ V[k+1] + H.T @ beta
 
             a_fl[k] = np.vstack(
                 [np.zeros((n_md, 1)), self.coriolis(V_r[k], beta, H)])
@@ -152,7 +153,8 @@ class ATBI_Flex:
                 P_pr_plus[k] = tau_pr_bar @ P_pr[k]
 
                 # 13.7
-                z = b_fl[k] + K_fl @ np.vstack([eta, np.zeros((6, 1))]) - F_ext_term
+                z = b_fl[k] + \
+                    K_fl @ np.vstack([eta, np.zeros((6, 1))]) - F_ext_term
                 eps_m = - z[0:n_md]  # tau_m (assumed to be zero): dim(n_md, 1)
                 nu_m[k] = D_m_inv @ eps_m
 
@@ -168,11 +170,11 @@ class ATBI_Flex:
 
                 # Rotation
                 R6 = sb.q2R(q.flatten(), 6)
-                
+
                 A_fl = sb.get_A(PI, klOO)
 
                 # Gather loop for k > 0
-                Gamma_fl = R6 @ P_pr_plus[k-1] @ R6.T # ?!?!?!?
+                Gamma_fl = R6 @ P_pr_plus[k-1] @ R6.T  # ?!?!?!?
                 P_fl = A_fl @ Gamma_fl @ A_fl.T + M_fl
                 D_m[k] = H_M_fl @ P_fl @ H_M_fl.T
                 mu_fl = P_fl[-6:, :] @ H_M_fl.T
@@ -185,7 +187,8 @@ class ATBI_Flex:
                 P_pr_plus[k] = tau_pr_bar @ P_pr[k]
 
                 # 13.7
-                z =  A_fl @ R6 @ z_pr_plus[k-1] + b_fl[k] + K_fl @ np.vstack([eta, np.zeros((6, 1))])  - F_ext_term
+                z = A_fl @ R6 @ z_pr_plus[k-1] + b_fl[k] + \
+                    K_fl @ np.vstack([eta, np.zeros((6, 1))]) - F_ext_term
                 eps_m = - z[0:n_md]  # tau_m (assumed to be zero): dim(n_md, 1)
                 nu_m[k] = D_m_inv @ eps_m
 

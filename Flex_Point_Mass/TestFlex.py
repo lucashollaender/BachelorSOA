@@ -26,6 +26,11 @@ r = Rigid_Properties(rho, klOC, w, h)
 f = Flex_Properties(E, G, n_nd, n_md)
 b1 = SOABody(j1, r, f)
 
+K = b1.flex.K_fl
+M = b1.flex.M_fl
+print("K symmetry err:", np.linalg.norm(K-K.T))
+print("M symmetry err:", np.linalg.norm(M-M.T))
+
 F_ext = np.array([0, 0, 0, 0, -100, 0]).reshape(6, 1)
 b1.set_F_ext(F_ext)
 
@@ -38,7 +43,7 @@ dt = 0.01
 
 sim = Simulation(system, tf, dt)
 
-#sim.camera_speed(0.5)
+# sim.camera_speed(0.5)
 sim.camera_ver(0)
 sim.camera_hor(0)
 
