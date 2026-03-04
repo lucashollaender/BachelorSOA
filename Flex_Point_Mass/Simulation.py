@@ -155,7 +155,7 @@ class Simulation:
                         
                     u_j = PI[j*6+3: j*6+6, :] @ eta
 
-                    # Global position of node j
+                    # Global position of node j (of body k)
                     p_glob = last_end + Ri @ (pos_und + u_j)
                     nodes_k.append(p_glob)
 
