@@ -37,6 +37,7 @@ class ATBI_Flex:
 
         elif joint_type == "spherical":
             q = theta.reshape(4, 1)
+            q = q / np.linalg.norm(q)
             return np.vstack((q, klOO)), q
 
         elif joint_type == "free":

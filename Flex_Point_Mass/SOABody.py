@@ -40,6 +40,7 @@ class SOABody:
         self.initialcondition = self.InitialCondition(joint, flex)
         rigid.A = rigid.h * rigid.w
         rigid.L = joint.L
+        flex.L_elem = joint.L / flex.n_elem
         self.m = rigid.rho * rigid.A * joint.L
         self.rigid.CkJk = np.array([1/12 * self.m * (rigid.h**2 + rigid.w**2), 1/12 * self.m * (rigid.h**2 + joint.L**2), 1/12 * self.m * (rigid.w**2 + joint.L**2)])
         rigid.Mk = rigid.get_Mk(self.m, self.rigid.CkJk)
