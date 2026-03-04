@@ -14,11 +14,7 @@ klOC = np.array([2.5, 0, 0])
 
 # n_md_max = (n_nd - 1) * 3
 
-<<<<<<< HEAD
-E, G, rho, n_nd, n_md = 230e9, 80e9, 7850, 12, 12
-=======
-E, G, rho, n_nd, n_md = 230e9, 80e9, 7850, 20, 10
->>>>>>> 21387c7e2a146da53f6dd30f2d94e4a981abb473
+E, G, rho, n_nd, n_md = 230e9, 80e9, 7850, 6, 5
 
 w, h = 0.1, 0.1
 
@@ -36,7 +32,7 @@ print(np.linalg.norm(PIe[5, :]))
 K = b1.flex.K_fl
 M = b1.flex.M_fl
 
-F_ext = np.array([0, 0, 0, 0, 0, -1e5]).reshape(6, 1)
+F_ext = np.array([0, 0, 0, 0, 0, -1e4]).reshape(6, 1)
 b1.set_F_ext(F_ext)
 b1.set_initial_beta0(-2)
 
@@ -44,8 +40,8 @@ bodies = [b1]
 
 system = MultibodySystem(bodies)
 
-tf = 1
-dt = 0.025
+tf = 5
+dt = 0.01
 
 sim = Simulation(system, tf, dt)
 
@@ -73,3 +69,5 @@ print(pd.DataFrame(b1.flex.M_fl[-6:, -6:]))
 print("M_fl")
 print(pd.DataFrame(b1.flex.M_fl))
 """
+
+# q norm
