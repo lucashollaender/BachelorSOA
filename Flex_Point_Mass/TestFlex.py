@@ -8,7 +8,7 @@ import pandas as pd
 
 L = 5
 
-klOO = L * np.array([0, 0, 1])
+klOO = L * np.array([1, 0, 0])
 H_type1 = "fixed"
 
 m = 1
@@ -26,12 +26,16 @@ r = Rigid_Properties(rho, klOC, w, h)
 f = Flex_Properties(E, G, n_nd, n_md)
 b1 = SOABody(j1, r, f)
 
+PIe = b1.flex.PI_end
+
+print(np.linalg.norm(PIe[3, :]))
+print(np.linalg.norm(PIe[4, :]))
+print(np.linalg.norm(PIe[5, :]))
+
 K = b1.flex.K_fl
 M = b1.flex.M_fl
-print("K symmetry err:", np.linalg.norm(K-K.T))
-print("M symmetry err:", np.linalg.norm(M-M.T))
 
-F_ext = np.array([0, 0, 0, 0, -100, 0]).reshape(6, 1)
+F_ext = np.array([0, 0, 0, 0, 0, 0]).reshape(6, 1)
 b1.set_F_ext(F_ext)
 
 bodies = [b1]

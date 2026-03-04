@@ -136,11 +136,11 @@ class Simulation:
                 tolerance = 1e-6
 
                 # Check if the current time is very close to an integer
-                """x = 1
+                x = 0
                 if i % 20 == 0 and j == n_nd-1 and x == 1:
                     print(pd.DataFrame(eta))
                     print(pd.DataFrame(PI[j*6+3 : j*6+6, :]))
-                """
+                
                 u_j = PI[j*6+3: j*6+6, :] @ eta
 
                 # 3. Global position of node j
