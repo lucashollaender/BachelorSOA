@@ -64,7 +64,8 @@ class Structural_Analysis_PM_Rect:
         # Stiffness matrix
         diag = [None] * 6
 
-        diag[0] = np.array([X, Y_1, Z_1, S, Z_3, Y_3, X, Y_1, Z_1, S, Z_3, Y_3])
+        diag[0] = np.array(
+            [X, Y_1, Z_1, S, Z_3, Y_3, X, Y_1, Z_1, S, Z_3, Y_3])
         diag[1] = np.array([0, 0, -Z_2, 0, 0, -Y_2, 0, 0, Z_2, 0])
         diag[2] = np.array([0, Y_2, 0, 0, Z_2, 0, 0, -Y_2])
         diag[3] = np.array([-X, -Y_1, -Z_1, -S, Z_4, Y_4])
@@ -192,8 +193,12 @@ class Structural_Analysis_PM_Rect:
 
         # Initialize sums
         p_0_sum = np.zeros((3, 1))
+        p_1_sum = np.zeros((3, n_md))
         CkJk_0_sum = np.zeros((3, 3))
+        CkJk_1_sum = np.zeros((3, 3*n_md))
+        CkJk_2_sum = np.zeros((3*n_md, 3*n_md))
         F_0_sum = np.zeros((3, n_md))
+        F_1_sum = np.zeros((3*n_md, n_md))
         G_0_sum = np.zeros((n_md, n_md))
         E_0_sum = np.zeros((3, n_md))
 
@@ -211,16 +216,26 @@ class Structural_Analysis_PM_Rect:
                 F_0_sum[:, r] += m_nd[i] * \
                     klkO_skew @ PI_t[i * 3: i * 3 + 3, r]
                 E_0_sum[:, r] += m_nd[i] * PI_t[i * 3: i*3 + 3, r]
-
+                p_1_sum[:, r] += m_nd[i] * PI_t[i * 3: i*3 + 3, r]
+                CkJk_1_sum[:, 3 * r: 3 * r + 3] += m_nd[i] * \
+                    sb.skew(PI_t[i * 3: i*3 + 3, r]) @ klkO_skew
                 for s in range(n_md):
                     G_0_sum[r, s] += m_nd[i] * PI_t[i * 3: i *
                                                     3 + 3, r].T @ PI_t[i * 3: i*3 + 3, s]
+                    CkJk_2_sum[3*r:3*r+3, 3*s:3*s+3] += m_nd[i] * sb.skew(PI_t[i * 3: i *
+                                                                               3 + 3, r]) @ sb.skew(PI_t[i * 3: i*3 + 3, s])
+                    F_1_sum[3*r:3*r+3, s] += m_nd[i] * sb.skew(PI_t[i * 3: i *
+                                                                    3 + 3, r]) @ PI_t[i * 3: i*3 + 3, s]
 
         # Store modal integrals
         self.p_0 = 1/m * p_0_sum
+        self.p_1 = 1/m * p_1_sum
         self.CkJk_0 = CkJk_0_sum
         self.CkJk_0[2, 2] = self.CkJk[2]
+        self.CkJk_1 = - CkJk_1_sum
+        self.CkJk_2 = - CkJk_2_sum
         self.F_0 = F_0_sum
+        self.F_1 = - F_1_sum
         self.G_0 = G_0_sum
         self.E_0 = E_0_sum
 
