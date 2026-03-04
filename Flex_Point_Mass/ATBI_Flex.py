@@ -234,7 +234,7 @@ class ATBI_Flex:
             # Spatial gravity rotation
             Ri[k] = Ri[k+1]  @ R6
 
-            A_fl[k] = sb.get_A(PI, R3 @ X[k][4:7])
+            A_fl[k] = sb.get_A(PI, R3.T @ X[k][4:7])
 
             if k == n - 1:
                 # Scatter loop (Tip of the chain)

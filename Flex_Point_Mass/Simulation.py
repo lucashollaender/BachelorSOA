@@ -96,7 +96,6 @@ class Simulation:
     def camera_hor(self, x):
         self.setting.camera_hor = x
 
-
     def nNodalPos(self):
         t = self.data.time
         X = self.data.X_list
