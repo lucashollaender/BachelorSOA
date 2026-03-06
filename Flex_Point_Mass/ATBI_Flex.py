@@ -15,9 +15,62 @@ class ATBI_Flex:
     def coriolis(self, V, beta, H):
         deltaV = H.T @ beta
         return sb.skew6(V) @ deltaV - sb.bar6(deltaV) @ deltaV
-
+    
     def gyroscopic(self, V, M):
         return sb.bar6(V) @ M @ V
+
+    def gyroscopic_PM(self, body, eta, eta_dot, V_r, m):
+        nmd = body.flex.n_md
+
+        # modal integrals
+        p_1 = body.flex.p_1
+        F_1 = body.flex.F_1
+        CkJk_1 = body.flex.CkJk_1
+        CkJk_2 = body.flex.CkJk_2
+
+        omega = V_r[0:3, :]
+        v     = V_r[3:6, :]
+
+        # X(r,eta)
+        def X_r(r):
+            X = np.zeros((3, 3))
+            for s in range(nmd):
+                X += CkJk_2[3*r:3*r+3, 3*s:3*s+3] * float(eta[s, 0])
+            return X
+
+        b_f = np.zeros((nmd, 1))
+        b_omega = np.zeros((3, 1))
+        p_1_dot_sum = np.zeros((3, 1))
+        for r in range(nmd):
+            # Modal gyroscopic term: b_f
+            p_1_r = p_1[:, r].reshape(-1, 1)
+            F_1_r = F_1[3*r:3*r+3, :]
+            CkJk_1_r = CkJk_1[:, 3*r:3*r+3]
+            A_r  = CkJk_1_r + X_r(r)
+            eta_dot_r = eta_dot[r, 0]
+
+            term = (m * sb.skew(p_1_r) @ v + 2 * (F_1_r @ eta_dot) + (A_r @ omega))
+            b_f[r, 0] = -(omega.T @ term).item()
+
+            # Omega gyroscopic term: b_omega
+            A_r  = CkJk_1_r + X_r(r)
+            b_omega += (A_r + A_r.T) @ (float(eta_dot_r) * omega)
+
+            # v gyroscopic term
+            p_1_dot_sum += p_1_r * eta_dot_r
+
+        # Omega gyroscopic term
+        b_omega += -m * sb.skew(v) @ p_1_dot_sum
+
+        # v gyroscopic term
+        b_v = 2 * m * sb.skew(omega) @ p_1_dot_sum
+
+        # Rigid gyroscopic term
+        Mrr = body.flex.M_fl[-6:, -6:]
+        b_r = sb.bar6(V_r) @ Mrr @ V_r
+        b_r += np.vstack([b_omega, b_v])
+
+        return np.vstack([b_f, b_r])
 
     def theta2X(self, theta, joint_type, klOO):
         if joint_type == "revx":
@@ -70,6 +123,7 @@ class ATBI_Flex:
             body = self.bodies[k]
             theta = state.Theta[k]
             beta = state.Beta[k]
+            eta = state.Eta[k]
             eta_dot = state.Eta_dot[k]
             H = body.joint.H
             Mk = body.rigid.Mk
@@ -95,8 +149,9 @@ class ATBI_Flex:
 
             a_fl[k] = np.vstack(
                 [np.zeros((n_md, 1)), self.coriolis(V_r[k], beta, H)])
-            b_fl[k] = np.vstack(
-                [np.zeros((n_md, 1)), self.gyroscopic(V_r[k], Mk)])
+            
+            b_fl[k] = np.vstack([np.zeros((n_md, 1)), self.gyroscopic(V_r[k], Mk)])
+            #b_fl[k] = self.gyroscopic_PM(body, eta, eta_dot, V_r[k], body.m)
 
             V[k] = np.vstack([V_f[k], V_r[k]])
 
@@ -127,8 +182,10 @@ class ATBI_Flex:
             F_ext = body.force.F_ext
             tau_pr = body.force.tau
             eta = state.Eta[k]
+            eta_dot = state.Eta_dot[k]
             M_fl = body.flex.M_fl
             K_fl = body.flex.K_fl
+            C_fl = body.flex.C_fl
             PI = body.flex.PI_end
             n_md = body.flex.n_md
             H_M_fl = np.hstack([np.eye(n_md, n_md), np.zeros((n_md, 6))])
@@ -160,7 +217,7 @@ class ATBI_Flex:
                 P_pr_plus[k] = tau_pr_bar @ P_pr[k]
 
                 # 13.7
-                z = b_fl[k] + K_fl @ np.vstack([eta, np.zeros((6, 1))]) - F_ext_term
+                z = b_fl[k] + K_fl @ np.vstack([eta, np.zeros((6, 1))]) - F_ext_term #+ C_fl @ np.vstack([eta_dot, np.zeros((6, 1))])
                 eps_m = - z[0:n_md]  # tau_m (assumed to be zero): dim(n_md, 1)
                 nu_m[k] = D_m_inv @ eps_m
 
@@ -193,7 +250,7 @@ class ATBI_Flex:
                 P_pr_plus[k] = tau_pr_bar @ P_pr[k]
 
                 # 13.7
-                z = A_fl @ R6 @ z_pr_plus[k-1] + b_fl[k] + K_fl @ np.vstack([eta, np.zeros((6, 1))]) - F_ext_term
+                z = A_fl @ R6 @ z_pr_plus[k-1] + b_fl[k] + K_fl @ np.vstack([eta, np.zeros((6, 1))]) - F_ext_term #+ C_fl @ np.vstack([eta_dot, np.zeros((6, 1))])
                 eps_m = - z[0:n_md]  # tau_m (assumed to be zero): dim(n_md, 1)
                 nu_m[k] = D_m_inv @ eps_m
 

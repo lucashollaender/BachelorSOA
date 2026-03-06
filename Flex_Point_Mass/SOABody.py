@@ -51,6 +51,7 @@ class SOABody:
         if self.flex.PI == [None]:
             body_analysis = Structural_Analysis_PM_Rect(rigid, flex)
 
+            """
             print("p_0")
             print(pd.DataFrame(body_analysis.p_0))
             print("p_1")
@@ -69,21 +70,30 @@ class SOABody:
             print(pd.DataFrame(body_analysis.G_0))
             print("E_0")
             print(pd.DataFrame(body_analysis.E_0))
-            print("eig")
-            print(pd.DataFrame(body_analysis.eigval))
+            print("omega^2")
+            print(pd.DataFrame(body_analysis.omega2))
             print("PI_t")
             print(pd.DataFrame(body_analysis.PI_t))
             print("K_st")
             print(pd.DataFrame(body_analysis.K_st))
+            """
 
             # PI
             self.flex.PI = body_analysis.PI
             self.flex.PI_end = body_analysis.PI[-6:, :]
-            self.flex.eigval = body_analysis.eigval
+            self.flex.omega2 = body_analysis.omega2
+            self.flex.omega = body_analysis.omega
 
-            # Stiffness and mass matrix
+            # Stiffness, damping and mass matrix
             self.flex.K_fl = body_analysis.K_fl
             self.flex.M_fl = body_analysis.M_fl
+            self.flex.C_fl = body_analysis.C_fl
+
+            # Modal integral for gyroscopic force
+            self.flex.p_1 = body_analysis.p_1
+            self.flex.F_1 = body_analysis.F_1
+            self.flex.CkJk_1 = body_analysis.CkJk_1
+            self.flex.CkJk_2 = body_analysis.CkJk_2
 
         # D_m invers (offline)
         H_M_fl = np.hstack(

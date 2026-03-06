@@ -155,13 +155,19 @@ class Structural_Analysis_PM_Rect:
         K_c = K_tt - K_tr @ X
 
         # Solve eigenvalue problem for Pi_t (Mass normalized!)
-        eigval, PI_t = la.eigh(K_c, M_c, subset_by_index=(0, self.n_md - 1))
+        omega2, PI_t = la.eigh(K_c, M_c, subset_by_index=(0, self.n_md - 1))
 
         # Store eigen values
-        self.eigval = eigval
+        self.omega2 = omega2
+        self.omega = np.sqrt(omega2)
 
         # Compute rotational part of PI
         PI_r = - X @ PI_t
+
+        # Remove numerical noise
+        threshold = 1e-12
+        PI_t[np.abs(PI_t) < threshold] = 0.0
+        PI_r[np.abs(PI_r) < threshold] = 0.0
 
         # Store PI_r and PI_t for modal integrals
         self.PI_r = np.vstack([np.zeros((3, self.n_md)), PI_r])
@@ -259,6 +265,18 @@ class Structural_Analysis_PM_Rect:
 
         return np.vstack([rw1, rw2, rw3])
 
+    def get_C_fl(self):
+        
+        # Damping setup
+        zeta = self.c * np.ones(self.n_md)
+
+        C_eta = np.diag(2.0 * zeta * self.omega)
+
+        C_fl = np.zeros_like(self.M_fl)
+        C_fl[:self.n_md, :self.n_md] = C_eta
+
+        return C_fl
+
     def __init__(self, rigid: Rigid_Properties, flex: Flex_Properties):
         self.w = rigid.w
         self.h = rigid.h
@@ -267,6 +285,7 @@ class Structural_Analysis_PM_Rect:
         self.m = rigid.rho * self.A * self.L
         self.E = flex.E
         self.G = flex.G
+        self.c = flex.c
         self.n_nd = flex.n_nd
         self.n_md = flex.n_md
         self.CkJk = rigid.CkJk
@@ -280,3 +299,4 @@ class Structural_Analysis_PM_Rect:
         self.PI = self.get_PI()
         self.K_fl = self.get_K_fl()
         self.M_fl = self.get_M_fl()
+        self.C_fl = self.get_C_fl()

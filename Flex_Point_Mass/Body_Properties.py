@@ -58,15 +58,18 @@ class Rigid_Properties:
 
 
 class Flex_Properties:
-    def __init__(self, E, G, n_nd, n_md):
+    def __init__(self, E, G, c, n_nd, n_md):
         self.E = E
         self.G = G
+        self.c = c
         self.n_nd = n_nd
         self.n_md = n_md
         self.n_elem = self.n_nd - 1
         self.K_fl = [None]
         self.M_fl = [None]
-        self.eigval = [None]
+        self.C_fl = [None]
+        self.omega2 = [None]
+        self.omega = [None]
         self.PI = [None]
         self.PI_end = [None]
     

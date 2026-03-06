@@ -14,13 +14,13 @@ klOC = np.array([2.5, 0, 0])
 
 # n_md_max = (n_nd - 1) * 3
 
-E, G, rho, n_nd, n_md = 230e9, 80e9, 7850, 6, 5
+E, G, c, rho, n_nd, n_md = 230e9, 80e9, 0.2, 7850, 6, 5
 
 w, h = 0.1, 0.1
 
 j1 = Joint(L, H_type1)
 r = Rigid_Properties(rho, klOC, w, h)
-f = Flex_Properties(E, G, n_nd, n_md)
+f = Flex_Properties(E, G, c, n_nd, n_md)
 b1 = SOABody(j1, r, f)
 
 PIe = b1.flex.PI_end
@@ -34,21 +34,21 @@ M = b1.flex.M_fl
 
 F_ext = np.array([0, 0, 0, 0, 0, -1e4]).reshape(6, 1)
 b1.set_F_ext(F_ext)
-b1.set_initial_beta0(-2)
+b1.set_initial_beta0(0)
 
 bodies = [b1]
 
 system = MultibodySystem(bodies)
 
-tf = 5
+tf = 1
 dt = 0.01
 
 sim = Simulation(system, tf, dt)
 
 # sim.camera_speed(0.5)
-sim.camera_ver(45)
-sim.camera_hor(0)
-sim.camera_speed(1.5)
+sim.camera_ver(0)
+sim.camera_hor(90)
+sim.camera_speed(0)
 
 sim.IntegrateSystem()
 
