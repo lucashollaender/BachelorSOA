@@ -46,8 +46,8 @@ bodies = [b1, b2]
 
 system = MultibodySystem(bodies)
 
-tf = 2
-dt = 0.01
+tf = 3
+dt = 0.001
 
 sim = Simulation(system, tf, dt)
 
