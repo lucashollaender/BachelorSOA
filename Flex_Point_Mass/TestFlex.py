@@ -46,8 +46,8 @@ dt = 0.01
 sim = Simulation(system, tf, dt)
 
 # sim.camera_speed(0.5)
-sim.camera_ver(0)
-sim.camera_hor(90)
+sim.camera_ver(45)
+sim.camera_hor(0)
 sim.camera_speed(0)
 
 sim.IntegrateSystem()
