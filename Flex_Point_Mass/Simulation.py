@@ -42,11 +42,13 @@ class Simulation:
             y0=self.system.S0,
             t_eval=t_eval,
             method="BDF",
-            rtol = 1e-8,
-            atol = 1e-10
+            rtol=1e-8,
+            atol=1e-10
         )
 
-        print("Integration successful!")
+        print(sol.message)
+        if not sol.success:
+            raise RuntimeError(f"Integration failed: {sol.message}")
 
         # Extract results to match [t, y] format
         self.data.time = sol.t
@@ -138,7 +140,6 @@ class Simulation:
 
                 # Rotation
                 Ri = Ri @ sb.q2R(q.flatten(), 3)
-                
 
                 for j in range(n_nd):
                     # Undeformed position in local frame (Structural analysis assumes beam along Z-axis)
@@ -151,8 +152,8 @@ class Simulation:
                     x = 0
                     if i % 20 == 0 and j == n_nd-1 and x == 1:
                         print(pd.DataFrame(eta))
-                        print(pd.DataFrame(PI[j*6+3 : j*6+6, :]))
-                        
+                        print(pd.DataFrame(PI[j*6+3: j*6+6, :]))
+
                     u_j = PI[j*6+3: j*6+6, :] @ eta
 
                     # Global position of node j (of body k)
@@ -161,20 +162,20 @@ class Simulation:
 
                 last_end = nodes_k[-1]
                 nodes_i.append(nodes_k)
-            
+
             nodal_pos.append(nodes_i)
-                
+
         return nodal_pos
 
     def animate_nodes(self, filename="", save_dir=""):
         # Takes nodal position list and returns 3D simulation of the flexible beam
-        
+
         t = self.data.time
         dt = t[1] - t[0]
 
         # Get nodal positions for the flexible beam
         nodal_pos = self.nNodalPos()
-        
+
         if not nodal_pos:
             print("Error: No nodal position data found. Did you run the integration?")
             return
@@ -188,7 +189,8 @@ class Simulation:
 
         # Determine Axis Limits dynamically based on node movement
         all_points = []
-        step = max(1, nt // 50)  # Sample frames to speed up boundary calculation
+        # Sample frames to speed up boundary calculation
+        step = max(1, nt // 50)
         for i in range(0, nt, step):
             for body_nodes in nodal_pos[i]:
                 for node in body_nodes:
@@ -233,20 +235,20 @@ class Simulation:
 
         def update(frame_idx):
             current_state = nodal_pos[frame_idx]
-            
+
             all_xs, all_ys, all_zs = [], [], []
 
             # Update each body separately
             for b_idx in range(n_bodies):
                 body_nodes = current_state[b_idx]
-                
+
                 xs = [float(node[0][0]) for node in body_nodes]
                 ys = [float(node[1][0]) for node in body_nodes]
                 zs = [float(node[2][0]) for node in body_nodes]
 
                 lines[b_idx].set_data(xs, ys)
                 lines[b_idx].set_3d_properties(zs)
-                
+
                 all_xs.extend(xs)
                 all_ys.extend(ys)
                 all_zs.extend(zs)
@@ -289,7 +291,7 @@ class Simulation:
 
         else:
             plt.show()
-    
+
     def get_pos(self):
         self.data.pos = self.nBodyPos()
         return self.data.pos
