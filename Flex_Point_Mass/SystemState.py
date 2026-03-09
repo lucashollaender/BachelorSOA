@@ -1,8 +1,9 @@
 import numpy as np
 import pandas as pd
 
+
 class SystemState:
-# State of system class
+    # State of system class
     def __init__(self, theta, beta, eta, eta_dot):
         # Parameters
         self.Theta = theta
@@ -35,7 +36,7 @@ class SystemState:
             sz = k.n_md
             Eta.append(S[idx:idx + sz].reshape(sz, 1))
             idx += sz
-        
+
         for k in flexs:
             sz = k.n_md
             Eta_dot.append(S[idx:idx + sz].reshape(sz, 1))
