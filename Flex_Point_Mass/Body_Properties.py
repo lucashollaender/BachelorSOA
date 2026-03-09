@@ -3,8 +3,9 @@ import scipy as sp
 import scipy.linalg as la
 from SOALIB import soalib as sb
 
+
 class Joint:
-# Joint class with H_type, H and klOO
+    # Joint class with H_type, H and klOO
     def __init__(self, L, H_type: str):
         # Parameters
         self.type = H_type
@@ -33,8 +34,9 @@ class Joint:
             "fixed": 0
         }[self.type]
 
+
 class Rigid_Properties:
-# Inertia class with m, CkJk and klOC
+    # Inertia class with m, CkJk and klOC
     def __init__(self, rho, klOC, w, h):
         # Parameters
         self.rho = rho
@@ -44,7 +46,7 @@ class Rigid_Properties:
         self.w = w
         self.h = h
         self.L = [None]
-    
+
     def get_Mk(self, m, CkJk):
         klOC = self.klOC
         CkJk = self.CkJk
@@ -72,10 +74,10 @@ class Flex_Properties:
         self.omega = [None]
         self.PI = [None]
         self.PI_end = [None]
-    
+
     def set_PI(self, PI):
         self.PI = PI
-    
+
     def set_K_fl(self, K_fl):
         self.K_fl = K_fl
 

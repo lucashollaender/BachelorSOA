@@ -16,7 +16,8 @@ class MultibodySystem:
         self.S0 = SystemState(Theta_0, Beta_0, Eta_0, Eta_dot_0).pack()
 
     def EOM(self, t, S):
-        state = SystemState.unpack(S.reshape(-1, 1), [b.joint for b in self.bodies], [b.flex for b in self.bodies])
+        state = SystemState.unpack(
+            S.reshape(-1, 1), [b.joint for b in self.bodies], [b.flex for b in self.bodies])
 
         # Normalize quaternions
         for k, body in enumerate(self.bodies):
@@ -25,23 +26,29 @@ class MultibodySystem:
                 state.Theta[k][0:4] = q / np.linalg.norm(q)
 
         X, V, a_fl, b_fl = self.ATBI.scatter_kinematics(state)
-        G_pr, nu_pr, nu_m, g_fl = self.ATBI.gather_ATBI(state, a_fl, b_fl, X, t)
-        theta_ddot, eta_ddot, alpha_fl = self.ATBI.scatter_ATBI(a_fl, X, G_pr, nu_pr, nu_m, g_fl)
+        G_pr, nu_pr, nu_m, g_fl = self.ATBI.gather_ATBI(
+            state, a_fl, b_fl, X, t)
+        theta_ddot, eta_ddot, alpha_fl = self.ATBI.scatter_ATBI(
+            a_fl, X, G_pr, nu_pr, nu_m, g_fl)
 
         Theta_dot, Eta_dot_list = [], []
         for k, body in enumerate(self.bodies):
             if body.joint.type.startswith("rev"):
                 Theta_dot.append(state.Beta[k].reshape(1, 1))
             elif body.joint.type == "spherical":
-                Theta_dot.append(sb.quat_derivative(state.Theta[k], state.Beta[k]).reshape(4, 1))
+                Theta_dot.append(sb.quat_derivative(
+                    state.Theta[k], state.Beta[k]).reshape(4, 1))
             elif body.joint.type == "free":
-                qdot = sb.quat_derivative(state.Theta[k][0:4], state.Beta[k][0:3]).reshape(4, 1)
-                Theta_dot.append(np.vstack([qdot, state.Beta[k][3:6]]).reshape(7, 1))
+                qdot = sb.quat_derivative(
+                    state.Theta[k][0:4], state.Beta[k][0:3]).reshape(4, 1)
+                Theta_dot.append(
+                    np.vstack([qdot, state.Beta[k][3:6]]).reshape(7, 1))
             elif body.joint.type == "fixed":
                 Theta_dot.append(np.zeros((0, 1)))
 
             Eta_dot_list.append(state.Eta_dot[k].reshape(body.flex.n_md, 1))
 
-        S_dot = np.vstack([*Theta_dot, *theta_ddot, *Eta_dot_list, *eta_ddot]).flatten()
-        
+        S_dot = np.vstack([*Theta_dot, *theta_ddot, *
+                          Eta_dot_list, *eta_ddot]).flatten()
+
         return S_dot
