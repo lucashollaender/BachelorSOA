@@ -41,11 +41,11 @@ bodies = [b1]
 system = MultibodySystem(bodies)
 
 tf = 3
-dt = 0.01
+dt = 0.001
 
 sim = Simulation(system, tf, dt)
 
-sim.setting.solver = "BDF"
+sim.setting.solver = "RK4"
 # sim.camera_speed(0.5)
 sim.camera_ver(0)
 sim.camera_hor(90)
