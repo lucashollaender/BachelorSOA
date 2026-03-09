@@ -10,7 +10,6 @@ import pandas as pd
 # Increase limit to 100 MB (default is 20)
 plt.rcParams['animation.embed_limit'] = 1000
 
-
 class SOABody:
     # SOAbody class
     class Force:
@@ -96,8 +95,7 @@ class SOABody:
             self.flex.CkJk_2 = body_analysis.CkJk_2
 
         # D_m invers (offline)
-        H_M_fl = np.hstack(
-            [np.eye(self.flex.n_md, self.flex.n_md), np.zeros((self.flex.n_md, 6))])
+        H_M_fl = np.hstack([np.eye(self.flex.n_md, self.flex.n_md), np.zeros((self.flex.n_md, 6))])
         A_fl = sb.get_A(self.flex.PI_end, self.joint.klOO)
         self.flex.L_fl = la.inv(H_M_fl @ self.flex.M_fl @ H_M_fl.T)
         zeta = H_M_fl @ A_fl
@@ -122,7 +120,6 @@ class SOABody:
             Dminv = self.flex.L_fl
         elif x == 1:
             Gamma_inv = la.inv(Gamma)
-            Dminv = self.flex.L_fl - \
-                la.solve((Gamma_inv + self.flex.D_fl).T,
-                         self.flex.U_fl.T).T @ self.flex.U_fl.T
+            #Dminv = self.flex.L_fl - la.solve((Gamma_inv + self.flex.D_fl).T, self.flex.U_fl.T).T @ self.flex.U_fl.T
+            Dminv = self.flex.L_fl - self.flex.U_fl@la.solve((np.eye(6,6)+Gamma@self.flex.D_fl), Gamma) @ self.flex.U_fl.T
         return Dminv

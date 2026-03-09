@@ -37,7 +37,7 @@ for k in range(n_max):
     sim.IntegrateSystem()
     dt_n[k] = timer.toc()
 
-    
+    print(f"Integration of n={k+1}: Done!")
 
 # Plotting
 # Number of bodies (1..n_max)
@@ -49,5 +49,8 @@ plt.xlabel("Number of bodies, n")
 plt.ylabel("Computation time [s]")
 plt.title("Computation Time vs Number of Bodies")
 plt.grid(True)
+
+plt.xlim(0, n_max)
+plt.ylim(0, max(dt_n)*1.1)
 
 plt.show()
