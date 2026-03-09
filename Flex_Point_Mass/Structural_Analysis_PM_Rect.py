@@ -237,7 +237,7 @@ class Structural_Analysis_PM_Rect:
         self.p_0 = 1/m * p_0_sum
         self.p_1 = 1/m * p_1_sum
         self.CkJk_0 = CkJk_0_sum
-        self.CkJk_0[2, 2] = self.CkJk[2]
+        self.CkJk_0[0, 0] = self.CkJk[0]
         self.CkJk_1 = - CkJk_1_sum
         self.CkJk_2 = - CkJk_2_sum
         self.F_0 = F_0_sum
