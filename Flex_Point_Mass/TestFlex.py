@@ -8,7 +8,7 @@ import pandas as pd
 
 L = 5
 H_type1 = "revz"
-H_type2 = "revz"
+H_type2 = "fixed"
 
 m = 1
 klOC = np.array([2.5, 0, 0])
@@ -46,14 +46,14 @@ bodies = [b1, b2]
 
 system = MultibodySystem(bodies)
 
-tf = 10
+tf = 2
 dt = 0.01
 
 sim = Simulation(system, tf, dt)
 
 # sim.camera_speed(0.5)
-sim.camera_ver(45)
-sim.camera_hor(0)
+sim.camera_ver(90)
+sim.camera_hor(90)
 sim.camera_speed(0)
 
 sim.IntegrateSystem()

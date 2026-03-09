@@ -119,7 +119,7 @@ class SOABody:
         if x == 0:
             Dminv = self.flex.L_fl
         elif x == 1:
-            Gamma_inv = la.inv(Gamma)
+            #Gamma_inv = la.inv(Gamma)
             #Dminv = self.flex.L_fl - la.solve((Gamma_inv + self.flex.D_fl).T, self.flex.U_fl.T).T @ self.flex.U_fl.T
-            Dminv = self.flex.L_fl - self.flex.U_fl@la.solve((np.eye(6,6)+Gamma@self.flex.D_fl), Gamma) @ self.flex.U_fl.T
+            Dminv = self.flex.L_fl - self.flex.U_fl @ la.solve((np.eye(6,6) + Gamma @ self.flex.D_fl), Gamma) @ self.flex.U_fl.T
         return Dminv

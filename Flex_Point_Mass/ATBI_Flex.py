@@ -151,8 +151,8 @@ class ATBI_Flex:
             a_fl[k] = np.vstack(
                 [np.zeros((n_md, 1)), self.coriolis(V_r[k], beta, H)])
 
-            b_fl[k] = np.vstack([np.zeros((n_md, 1)), self.gyroscopic(V_r[k], Mk)])
-            # b_fl[k] = self.gyroscopic_PM(body, eta, eta_dot, V_r[k], body.m)
+            # b_fl[k] = np.vstack([np.zeros((n_md, 1)), self.gyroscopic(V_r[k], Mk)])
+            b_fl[k] = self.gyroscopic_PM(body, eta, eta_dot, V_r[k], body.m)
 
             V[k] = np.vstack([V_f[k], V_r[k]])
 
