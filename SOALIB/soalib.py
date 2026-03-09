@@ -120,6 +120,7 @@ def hinge_map(x):
 
     return H
 
+
 def get_quat_from_degrees(x, y, z):
     # Takes angles, x, y and z and returns quaternion
 
@@ -128,10 +129,46 @@ def get_quat_from_degrees(x, y, z):
 
     return q
 
+
 def get_A(PI_end, klOO):
     return np.vstack([PI_end.T, phi(klOO)])
+
 
 def get_R_tot(R6, n_md):
     rw1 = np.hstack([np.eye(n_md, n_md), np.zeros((n_md, 6))])
     rw2 = np.hstack([np.zeros((6, n_md)), R6])
-    return  np.vstack([rw1, rw2])
+    return np.vstack([rw1, rw2])
+
+
+def integrate_RK4(system, t0, tf, dt):
+    """
+    Choose dt such that (tf-t0)/dt is an integer
+    """
+    nt = int((tf - t0) / dt) + 1
+    t = np.linspace(t0, tf, nt)
+
+    y0 = system.S0
+
+    n = len(y0)
+
+    Y = np.zeros((n, nt))
+    Y[:, 0] = y0
+
+    for i in range(nt - 1):
+
+        y = Y[:, i]
+        ti = t[i]
+
+        k1 = system.EOM(ti, y)
+        k2 = system.EOM(ti + dt/2, y + dt/2 * k1)
+        k3 = system.EOM(ti + dt/2, y + dt/2 * k2)
+        k4 = system.EOM(ti + dt, y + dt * k3)
+
+        Y[:, i+1] = y + dt * (k1/6 + (k2 + k3)/3 + k4/6)
+
+        if not np.all(np.isfinite(Y[:, i+1])):
+            raise FloatingPointError(
+                f"RK4 produced invalid state at step {i+1}, t={t[i+1]}"
+            )
+
+    return Y, t

@@ -21,6 +21,7 @@ class Simulation:
             self.camera_speed = 0
             self.camera_ver = 20
             self.camera_hor = 0
+            self.solver = "RK4"
 
     def __init__(self, system: MultibodySystem, tf, dt):
         self.system = system
@@ -34,25 +35,32 @@ class Simulation:
 
     def IntegrateSystem(self):
         print("Integrating...")
-        t_eval = np.linspace(0, self.tf, int(self.tf/self.dt)+1)
 
-        sol = solve_ivp(
-            fun=self.system.EOM,
-            t_span=(0, self.tf),
-            y0=self.system.S0,
-            t_eval=t_eval,
-            method="BDF",
-            rtol=1e-4,
-            atol=1e-6
-        )
+        if self.setting.solver == "RK4":
 
-        print(sol.message)
-        if not sol.success:
-            raise RuntimeError(f"Integration failed: {sol.message}")
+            Y, t = sb.integrate_RK4(self.system, 0, self.tf, self.dt)
 
-        # Extract results to match [t, y] format
-        self.data.time = sol.t
-        states = sol.y.T
+            self.data.time = t
+            states = Y.T
+
+        else:
+
+            t_eval = np.linspace(0, self.tf, int(self.tf/self.dt)+1)
+
+            sol = solve_ivp(
+                fun=self.system.EOM,
+                t_span=(0, self.tf),
+                y0=self.system.S0,
+                t_eval=t_eval,
+                method=self.setting.solver,
+                rtol=1e-8,
+                atol=1e-10
+            )
+
+            self.data.time = sol.t
+            states = sol.y.T
+
+        print("Integration successful!")
 
         # Find X-vector for each time step
         for i in range(len(self.data.time)):
