@@ -26,7 +26,7 @@ b1 = SOABody(j1, r, f)
 
 j2 = Joint(L, H_type2)
 r = Rigid_Properties(rho, klOC, w, h)
-f = Flex_Properties(E, G, c, n_nd, n_md) 
+f = Flex_Properties(E, G, c, n_nd, n_md)
 b2 = SOABody(j2, r, f)
 
 PIe = b1.flex.PI_end
@@ -74,8 +74,8 @@ print(pd.DataFrame(b1.flex.K_fl))
 print("M_fl_red")
 print(pd.DataFrame(b1.flex.M_fl[-6:, -6:]))
 
-#print("M_fl")
-#print(pd.DataFrame(b1.flex.M_fl))
+# print("M_fl")
+# print(pd.DataFrame(b1.flex.M_fl))
 
 
 # q norm
