@@ -8,7 +8,7 @@ import pandas as pd
 
 L = 5
 H_type1 = "revz"
-H_type2 = "fixed"
+H_type2 = "spherical"
 
 m = 1
 klOC = np.array([2.5, 0, 0])
@@ -38,30 +38,29 @@ print(np.linalg.norm(PIe[5, :]))
 K = b1.flex.K_fl
 M = b1.flex.M_fl
 
-F_ext = np.array([0, 0, 0, 0, 0, -1e5]).reshape(6, 1)
-b2.set_F_ext(F_ext)
-b1.set_initial_beta0(1)
+F_ext = np.array([0, 0, 0, -1e5, 0, 0]).reshape(6, 1)
+# b1.set_F_ext(F_ext)
+b1.set_initial_beta0(2)
 
-bodies = [b1, b2]
+bodies = [b1, b2, b1]
 
 system = MultibodySystem(bodies)
 
-tf = 3
+tf = 1
 dt = 0.001
 
 sim = Simulation(system, tf, dt)
 
-# sim.camera_speed(0.5)
-sim.camera_ver(90)
-sim.camera_hor(90)
-sim.camera_speed(0)
+sim.set_camera_ver(90)
+sim.set_camera_hor(90)
+sim.set_camera_speed(0)
+sim.set_ani_dt(0.01)
 
 sim.IntegrateSystem()
 
 save_dir = r"C:\Users\jepp6\OneDrive - Aarhus universitet\Dokumenter\Noter\6. Semester\Bachelor Projekt\BachelorCode\Renders"
 
 sim.animate_nodes()
-
 
 """
 print("PI")
@@ -70,12 +69,8 @@ print("eigval")
 print(pd.DataFrame(b1.flex.eigval))
 print("K_fl")
 print(pd.DataFrame(b1.flex.K_fl))
-"""
 print("M_fl_red")
 print(pd.DataFrame(b1.flex.M_fl[-6:, -6:]))
-
-# print("M_fl")
-# print(pd.DataFrame(b1.flex.M_fl))
-
-
-# q norm
+#print("M_fl")
+#print(pd.DataFrame(b1.flex.M_fl))
+"""

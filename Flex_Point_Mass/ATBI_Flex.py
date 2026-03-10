@@ -88,7 +88,7 @@ class ATBI_Flex:
             ang = theta.item()
             q = np.array([[0], [0], [np.sin(ang/2)], [np.cos(ang/2)]])
             q = q / np.linalg.norm(q)
-            print(ang)
+            #print(ang)
             return np.vstack((q, klOO)), q
 
         elif joint_type == "spherical":

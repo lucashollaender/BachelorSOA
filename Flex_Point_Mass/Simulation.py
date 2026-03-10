@@ -8,6 +8,7 @@ from MultibodySystem import MultibodySystem
 from SystemState import SystemState
 from SOALIB import soalib as sb
 import pandas as pd
+from tqdm import tqdm
 
 
 class Simulation:
@@ -29,12 +30,32 @@ class Simulation:
         self.setting = self.Setting()
         self.tf = tf
         self.dt = dt
+        self.setting.ani_dt = dt
 
         # Increase limit to 100 MB (default is 20)
         plt.rcParams['animation.embed_limit'] = 1000
 
     def IntegrateSystem(self):
-        print("Integrating...")
+        #print("Integrating...")
+
+        # Progress bar
+        pbar = tqdm(total=100, desc="Integration", unit="%")
+        original_EOM = self.system.EOM
+
+        last_percent = -1
+
+        def tracked_EOM(t, S):
+            nonlocal last_percent
+
+            percent = int((t / self.tf) * 100 - 1)
+
+            if percent > last_percent:
+                pbar.update(percent - last_percent)
+                last_percent = percent
+
+            return original_EOM(t, S)
+
+        self.system.EOM = tracked_EOM
 
         if self.setting.solver == "RK4":
 
@@ -60,14 +81,25 @@ class Simulation:
             self.data.time = sol.t
             states = sol.y.T
 
+        self.system.EOM = original_EOM
+        pbar.close()
         print("Integration successful!")
 
         # Find X-vector for each time step
-        for i in range(len(self.data.time)):
+        dt0 = self.setting.ani_dt
 
+        if dt0 >= self.dt:
+            scale = int(dt0 / self.dt)
+            nt = int(len(self.data.time) / scale)
+            self.data.time = np.linspace(0, self.tf, nt)
+        else:
+            print("Error! Invalid animation time step! (ani_dt < sim_dt)")
+
+        for i in range(len(self.data.time)):
+            j = i * scale
             # Unpack state
             current_state = SystemState.unpack(
-                states[i].reshape(-1, 1), [b.joint for b in self.system.bodies], [b.flex for b in self.system.bodies])
+                states[j].reshape(-1, 1), [b.joint for b in self.system.bodies], [b.flex for b in self.system.bodies])
 
             # Kinematic scatter loop to find X
             X, V, a_fl, b_fl = self.system.ATBI.scatter_kinematics(
@@ -105,14 +137,17 @@ class Simulation:
         return self.data.alpha_list
 
     # Settings
-    def camera_speed(self, x):
+    def set_camera_speed(self, x):
         self.setting.camera_speed = x
 
-    def camera_ver(self, x):
+    def set_camera_ver(self, x):
         self.setting.camera_ver = x
 
-    def camera_hor(self, x):
+    def set_camera_hor(self, x):
         self.setting.camera_hor = x
+
+    def set_ani_dt(self, x):
+        self.setting.ani_dt = x
 
     def nNodalPos(self):
         t = self.data.time
