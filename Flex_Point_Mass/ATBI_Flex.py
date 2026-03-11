@@ -303,7 +303,7 @@ class ATBI_Flex:
             A_fl[k] = sb.get_A(PI, R3.T @ X[k][4:7])
 
             if k == n - 1:
-                # Scatter loop (Tip of the chain)
+                # Scatter loop (Base of chain)
                 theta_ddot[k] = nu_pr[k]
                 alpha_pr = H_B.T @ theta_ddot[k] + a_fl[k][-6:]
                 eta_ddot[k] = nu_m[k] - g_fl[k].T @ alpha_pr
