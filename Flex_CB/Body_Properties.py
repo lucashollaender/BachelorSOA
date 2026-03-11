@@ -11,6 +11,7 @@ class Joint:
         self.type = H_type
         self.H = sb.hinge_map(H_type)
         self.L = L
+        self.klOC = np.array([L/2, 0, 0]).reshape(3, 1)
         self.klOO = np.array([L, 0, 0]).reshape(3, 1)
 
     # Unpacking size
@@ -37,18 +38,16 @@ class Joint:
 
 class Rigid_Properties:
     # Inertia class with m, CkJk and klOC
-    def __init__(self, rho, klOC, w, h):
+    def __init__(self, rho, w, h):
         # Parameters
         self.rho = rho
-        self.klOC = klOC.reshape(3, 1)
         self.CkJk = [None]
         self.Mk = [None]
         self.w = w
         self.h = h
         self.L = [None]
 
-    def get_Mk(self, m, CkJk):
-        klOC = self.klOC
+    def get_Mk(self, m, CkJk, klOC):
         CkJk = self.CkJk
 
         # Rigid spatial inertia

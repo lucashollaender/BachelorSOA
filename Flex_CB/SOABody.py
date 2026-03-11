@@ -3,7 +3,7 @@ import matplotlib.pyplot as plt
 import scipy.linalg as la
 from SOALIB import soalib as sb
 from scipy.integrate import solve_ivp
-from Flex_CB.Structural_Analysis_CB_Rect import Structural_Analysis_CB_Rect
+from Structural_Analysis_CB_Rect import Structural_Analysis_CB_Rect
 from Body_Properties import Joint, Rigid_Properties, Flex_Properties
 import pandas as pd
 
@@ -44,11 +44,11 @@ class SOABody:
         self.m = rigid.rho * rigid.A * joint.L
         self.rigid.CkJk = np.array([1/12 * self.m * (rigid.h**2 + rigid.w**2), 1/12 * self.m * (
             rigid.h**2 + joint.L**2), 1/12 * self.m * (rigid.w**2 + joint.L**2)])
-        rigid.Mk = rigid.get_Mk(self.m, self.rigid.CkJk)
+        rigid.Mk = rigid.get_Mk(self.m, self.rigid.CkJk, self.joint.klOC)
 
         # Structural analysis is PI == [None] (Point mass: Rectangular cross section)
         if self.flex.PI == [None]:
-            body_analysis = Structural_Analysis_CB_Rect(rigid, flex)
+            body_analysis = Structural_Analysis_CB_Rect(joint, rigid, flex)
 
             """
             print("p_0")
@@ -79,6 +79,7 @@ class SOABody:
 
             # PI
             self.flex.PI = body_analysis.PI
+            self.flex.PI_e = body_analysis.PI_e
             self.flex.PI_end = body_analysis.PI[-6:, :]
             self.flex.omega2 = body_analysis.omega2
             self.flex.omega = body_analysis.omega
