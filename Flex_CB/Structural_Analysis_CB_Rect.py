@@ -2,7 +2,7 @@ import numpy as np
 import scipy.linalg as la
 import pandas as pd
 from SOALIB import soalib as sb
-from Body_Properties import Rigid_Properties, Flex_Properties
+from Body_Properties import Joint, Rigid_Properties, Flex_Properties
 
 
 class Structural_Analysis_CB_Rect:
@@ -64,8 +64,7 @@ class Structural_Analysis_CB_Rect:
         # Stiffness matrix
         diag = [None] * 6
 
-        diag[0] = np.array(
-            [X, Y_1, Z_1, S, Z_3, Y_3, X, Y_1, Z_1, S, Z_3, Y_3])
+        diag[0] = np.array([X, Y_1, Z_1, S, Z_3, Y_3, X, Y_1, Z_1, S, Z_3, Y_3])
         diag[1] = np.array([0, 0, -Z_2, 0, 0, -Y_2, 0, 0, Z_2, 0])
         diag[2] = np.array([0, Y_2, 0, 0, Z_2, 0, 0, -Y_2])
         diag[3] = np.array([-X, -Y_1, -Z_1, -S, Z_4, Y_4])
@@ -99,7 +98,7 @@ class Structural_Analysis_CB_Rect:
 
         return K_st
 
-    def get_M_nd(self):
+    def get_M_st(self):
         # Nodal masses
         m_e = self.m_e
 
@@ -108,76 +107,102 @@ class Structural_Analysis_CB_Rect:
 
         # Store nodal masses and lenghts
         self.m_nd = m
+        
+        J_x = 1/12 * self.h * self.w * (self.h**2 + self.w**2)
+        I_y = 1/12 * self.h**3 * self.w
+        I_z = 1/12 * self.h * self.w**3
+        L_elem = self.L_elem
+        A = self.A
+        rho = self.rho
 
-        block = []
-        for i in range(self.n_nd):
-            block.append(np.zeros((3, 3)))
-            block.append(m[i] * np.eye(3, 3))
+        # Stiffness matrix
+        diag = [None] * 6
 
-        M = la.block_diag(*block)
+        diag[0] = np.array([1/3, 13/35+6*I_z/(5*A*L_elem**2), 13/35+6*I_y/(5*A*L_elem**2), J_x/(3*A), L_elem**2/105+2*I_y/(15*A), L_elem**2/105+2*I_z/(15*A), 1/3, 13/35+6*I_z/(5*A*L_elem**2), 13/35+6*I_y/(5*A*L_elem**2), J_x/(3*A), L_elem**2/105+2*I_y/(15*A), L_elem**2/105+2*I_z/(15*A)])
+        diag[1] = np.array([0, 0, -11*L_elem/210-I_y/(10*A*L_elem), 0, 0, 13*L_elem/420-I_z/(10*A*L_elem), 0, 0, 11*L_elem/210+I_y/(10*A*L_elem), 0])
+        diag[2] = np.array([0, 11*L_elem/210+I_z/(10*A*L_elem), 0, 0, -13*L_elem/420+I_y/(10*A*L_elem), 0, 0, -11*L_elem/210-I_z/(10*A*L_elem)])
+        diag[3] = np.array([1/6, 9/70-6*I_z/(5*A*L_elem**2), 9/70-6*I_y/(5*A*L_elem**2), J_x/(6*A), -L_elem**2/140-I_y/(30*A), -L_elem**2/140-I_z/(30*A)])
+        diag[4] = np.array([0, 0, 13*L_elem/420-I_y/(10*A*L_elem), 0])
+        diag[5] = np.array([0, -13*L_elem/420+I_z/(10*A*L_elem)])
 
-        return M
+        M = np.diag(diag[0], k=0)
+
+        for i in range(1, 6):
+            M += np.diag(diag[i], k=-2*i) + np.diag(diag[i], k=2*i)
+        
+        M = rho * A * L_elem * M
+
+        # Change so rotations first is along
+        perm = [3, 4, 5, 0, 1, 2, 9, 10, 11, 6, 7, 8]
+        M_perm = M[np.ix_(perm, perm)]
+
+        # Global stiffness matrix setup
+        M_st = np.zeros((6*self.n_nd, 6*self.n_nd))
+
+        for i in range(self.n_nd - 1):
+            M_i = np.zeros((6*self.n_nd, 6*self.n_nd))
+            M_i[i*6:i*6+12, i*6:i*6+12] = M_perm
+            M_st += M_i
+
+        return M_st
 
     def get_PI(self):
 
-        # Fixed BC
-        K_st = self.K_st[6:, 6:]
-        M_nd = self.M_nd[6:, 6:]
+        M = self.M_st
+        K = self.K_st
+        # Indexing B(boundary) I(interior) Follows Adams flex notation
+        boundary_nodes = [0]          # Cantilever beam
+        B = []
+        for i in boundary_nodes:
+            B.extend(range(6*i, 6*i+6))
+        
+        all_dofs = list(range(6*self.n_nd))
+        I = [k for k in all_dofs if k not in B]
+        K_BB = K[np.ix_(B, B)]
+        K_BI = K[np.ix_(B, I)]
+        K_IB = K[np.ix_(I, B)]
+        K_II = K[np.ix_(I, I)]
+        M_II = M[np.ix_(I, I)]
 
-        # Rearranging of M and K
-        index = np.zeros((1, 0))
-
-        for i in range(self.n_elem):
-            index_add = np.linspace(i * 6 + 3, i * 6 + 5, 3).reshape(1, 3)
-            index = np.hstack([index, index_add])
-
-        for i in range(self.n_elem):
-            index_add = np.linspace(i * 6, i * 6 + 2, 3).reshape(1, 3)
-            index = np.hstack([index, index_add])
-
-        index = index.flatten().astype(int)
-        K = K_st[np.ix_(index, index)]
-        M = M_nd[np.ix_(index, index)]
-
-        # Find K_tt, K_rr, K_tr, K_rt and M_c
-        sz = M.shape[0]
-        sz2 = int(sz / 2)
-
-        K_tt = K[0:sz2, 0:sz2]
-        K_rr = K[sz2:sz, sz2:sz]
-        K_tr = K[0:sz2, sz2:sz]
-        K_rt = K[sz2:sz, 0:sz2]
-
-        M_c = M[0:sz2, 0:sz2]
-
-        # Find K_e (np.linalg.inv(K_rr) * K_rt)
-        X = la.solve(K_rr, K_rt, assume_a="sym")
-        K_c = K_tt - K_tr @ X
+        # We compute constraint modes from static deformation shape
+        PI_b = - la.solve(K_II, K_IB)
 
         # Solve eigenvalue problem for Pi_t (Mass normalized!)
-        omega2, PI_t = la.eigh(K_c, M_c, subset_by_index=(0, self.n_md - 1))
+        eig_e, PI_e = la.eigh(K_II, M_II, subset_by_index=(0, self.n_md - 1))
+
+        # Extract PI_e
+        self.PI_e = np.vstack([np.zeros((6, self.n_md)), PI_e])
+
+        PI_c = np.block([
+        [np.eye(6), np.zeros((6, self.n_md))],
+        [PI_b, PI_e]])
+
+        M_n = PI_c.T @ M @ PI_c
+        K_n = PI_c.T @ K @ PI_c
+
+        omega2, PI_n = la.eigh(K_n, M_n)
 
         # Store eigen values
-        self.omega2 = omega2
-        self.omega = np.sqrt(omega2)
+        self.omega2 = omega2[6:]
+        self.omega = np.sqrt(self.omega2)
 
-        # Compute rotational part of PI
-        PI_r = - X @ PI_t
+        """
+        print("PI_n")
+        print(pd.DataFrame(PI_n))
+        print("PI_c")
+        print(pd.DataFrame(PI_c))
+        """
+        
+        PI_n = PI_n[:, 6:]
 
-        # Remove numerical noise
-        threshold = 1e-12
-        PI_t[np.abs(PI_t) < threshold] = 0.0
-        PI_r[np.abs(PI_r) < threshold] = 0.0
+        PI = PI_c @ PI_n
 
-        # Store PI_r and PI_t for modal integrals
-        self.PI_r = np.vstack([np.zeros((3, self.n_md)), PI_r])
-        self.PI_t = np.vstack([np.zeros((3, self.n_md)), PI_t])
-
-        # PI setup
-        PI = np.zeros((2 * PI_t.shape[0] + 6, PI_t.shape[1]))
-        for i in range(self.n_elem):
-            PI[i * 6 + 6:i * 6 + 9, :] = PI_r[i * 3:i * 3 + 3, :]
-            PI[i * 6 + 9:i * 6 + 12, :] = PI_t[i * 3:i * 3 + 3, :]
+        # Extract lambda_ and gamma
+        self.gamma = np.zeros((3*self.n_nd, self.n_md))
+        self.lambda_ = np.zeros((3*self.n_nd, self.n_md))
+        for i in range(self.n_nd):
+            self.lambda_[i*3:i*3+3, :] = PI[i*3:i*3+3, :]
+            self.gamma[i*3:i*3+3, :] = PI[i*3+3:i*3+6, :]
 
         return PI
 
@@ -193,9 +218,12 @@ class Structural_Analysis_CB_Rect:
         m = self.m
         m_nd = self.m_nd.reshape(-1, 1)
         L_elem = self.L_elem
-        PI_t = self.PI_t
         n_md = self.n_md
         n_nd = self.n_nd
+        lambda_ = self.lambda_
+        gamma = self.gamma
+        #J_nd = m_nd * np.array([1/12 * (self.w**2 + self.h**2), 1/12 * (self.w**2 + self.h**2)])
+        #p_nd = 
 
         # Initialize sums
         p_0_sum = np.zeros((3, 1))
@@ -220,18 +248,17 @@ class Structural_Analysis_CB_Rect:
 
             for r in range(n_md):
                 F_0_sum[:, r] += m_nd[i] * \
-                    klkO_skew @ PI_t[i * 3: i * 3 + 3, r]
-                E_0_sum[:, r] += m_nd[i] * PI_t[i * 3: i*3 + 3, r]
-                p_1_sum[:, r] += m_nd[i] * PI_t[i * 3: i*3 + 3, r]
+                    klkO_skew @ gamma[i * 3: i * 3 + 3, r]
+                E_0_sum[:, r] += m_nd[i] * gamma[i * 3: i*3 + 3, r]
+                p_1_sum[:, r] += m_nd[i] * gamma[i * 3: i*3 + 3, r]
                 CkJk_1_sum[:, 3 * r: 3 * r + 3] += m_nd[i] * \
-                    sb.skew(PI_t[i * 3: i*3 + 3, r]) @ klkO_skew
+                    sb.skew(gamma[i * 3: i*3 + 3, r]) @ klkO_skew
                 for s in range(n_md):
-                    G_0_sum[r, s] += m_nd[i] * PI_t[i * 3: i *
-                                                    3 + 3, r].T @ PI_t[i * 3: i*3 + 3, s]
-                    CkJk_2_sum[3*r:3*r+3, 3*s:3*s+3] += m_nd[i] * sb.skew(PI_t[i * 3: i *
-                                                                               3 + 3, r]) @ sb.skew(PI_t[i * 3: i*3 + 3, s])
-                    F_1_sum[3*r:3*r+3, s] += m_nd[i] * sb.skew(PI_t[i * 3: i *
-                                                                    3 + 3, r]) @ PI_t[i * 3: i*3 + 3, s]
+                    G_0_sum[r, s] += m_nd[i] * gamma[i * 3: i * 3 + 3, r].T @ gamma[i * 3: i*3 + 3, s]
+                    CkJk_2_sum[3*r:3*r+3, 3*s:3*s+3] += m_nd[i] * sb.skew(gamma[i * 3: i *
+                                                                               3 + 3, r]) @ sb.skew(gamma[i * 3: i*3 + 3, s])
+                    F_1_sum[3*r:3*r+3, s] += m_nd[i] * sb.skew(gamma[i * 3: i *
+                                                                    3 + 3, r]) @ gamma[i * 3: i*3 + 3, s]
 
         # Store modal integrals
         self.p_0 = 1/m * p_0_sum
@@ -277,12 +304,14 @@ class Structural_Analysis_CB_Rect:
 
         return C_fl
 
-    def __init__(self, rigid: Rigid_Properties, flex: Flex_Properties):
+    def __init__(self, joint: Joint, rigid: Rigid_Properties, flex: Flex_Properties):
+        self.klOC = joint.klOC
         self.w = rigid.w
         self.h = rigid.h
         self.L = rigid.L
         self.A = rigid.w * rigid.h
-        self.m = rigid.rho * self.A * self.L
+        self.rho = rigid.rho
+        self.m = self.rho * self.A * self.L
         self.E = flex.E
         self.G = flex.G
         self.c = flex.c
@@ -291,12 +320,18 @@ class Structural_Analysis_CB_Rect:
         self.CkJk = rigid.CkJk
         self.n_elem = self.n_nd - 1
         self.L_elem = self.L / self.n_elem
-        self.m_e = rigid.rho * self.A * self.L_elem
+        self.m_e = self.rho * self.A * self.L_elem
 
         # Structural analysis
         self.K_st = self.get_K_st()
-        self.M_nd = self.get_M_nd()
+        self.M_st = self.get_M_st()
         self.PI = self.get_PI()
+        """
+        print("PI")
+        print(pd.DataFrame(self.PI))
+        print("omega")
+        print(pd.DataFrame(self.omega))
+        """
         self.K_fl = self.get_K_fl()
         self.M_fl = self.get_M_fl()
         self.C_fl = self.get_C_fl()

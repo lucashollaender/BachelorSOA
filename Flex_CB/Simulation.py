@@ -35,11 +35,12 @@ class Simulation:
         # Increase limit to 100 MB (default is 20)
         plt.rcParams['animation.embed_limit'] = 1000
 
-    def IntegrateSystem(self):
+    def IntegrateSystem(self, solver="RK4"):
+        self.setting.solver = solver
         #print("Integrating...")
 
         # Progress bar
-        pbar = tqdm(total=100, desc="Integration", unit="%")
+        pbar = tqdm(total=100, desc=f"Integration ({solver})", unit="%")
         original_EOM = self.system.EOM
 
         last_percent = -1
@@ -173,7 +174,7 @@ class Simulation:
                 eta = state.Eta[k]
                 body = self.system.bodies[k]
                 n_nd = body.flex.n_nd
-                PI = body.flex.PI
+                PI = body.flex.PI_e
                 L_elem = body.flex.L_elem
 
                 nodes_k = []
@@ -190,13 +191,6 @@ class Simulation:
 
                     # Translational deformation for node j
                     # (Translations are stored at indices j*6+3 to j*6+6 in the PI matrix)
-
-                    # Check if the current time is very close to an integer
-                    x = 0
-                    if i % 20 == 0 and j == n_nd-1 and x == 1:
-                        print(pd.DataFrame(eta))
-                        print(pd.DataFrame(PI[j*6+3: j*6+6, :]))
-
                     u_j = PI[j*6+3: j*6+6, :] @ eta
 
                     # Global position of node j (of body k)

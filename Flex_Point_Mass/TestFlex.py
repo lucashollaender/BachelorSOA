@@ -7,8 +7,7 @@ from SOALIB import soalib as sb
 import pandas as pd
 
 L = 5
-H_type1 = "revz"
-H_type2 = "spherical"
+H_type1 = "fixed"
 
 m = 1
 klOC = np.array([2.5, 0, 0])
@@ -24,11 +23,6 @@ r = Rigid_Properties(rho, klOC, w, h)
 f = Flex_Properties(E, G, c, n_nd, n_md)
 b1 = SOABody(j1, r, f)
 
-j2 = Joint(L, H_type2)
-r = Rigid_Properties(rho, klOC, w, h)
-f = Flex_Properties(E, G, c, n_nd, n_md)
-b2 = SOABody(j2, r, f)
-
 PIe = b1.flex.PI_end
 
 print(np.linalg.norm(PIe[3, :]))
@@ -38,16 +32,16 @@ print(np.linalg.norm(PIe[5, :]))
 K = b1.flex.K_fl
 M = b1.flex.M_fl
 
-F_ext = np.array([0, 0, 0, -1e5, 0, 0]).reshape(6, 1)
-# b1.set_F_ext(F_ext)
-b1.set_initial_beta0(2)
+F_ext = np.array([0, 0, 0, 0, 1e5, 0]).reshape(6, 1)
+b1.set_F_ext(F_ext)
+#b1.set_initial_beta0(2)
 
-bodies = [b1, b2, b1]
+bodies = [b1]
 
 system = MultibodySystem(bodies)
 
-tf = 1
-dt = 0.001
+tf = 3
+dt = 0.01
 
 sim = Simulation(system, tf, dt)
 
