@@ -24,7 +24,7 @@ print(np.linalg.norm(PIe[3, :]))
 print(np.linalg.norm(PIe[4, :]))
 print(np.linalg.norm(PIe[5, :]))
 
-F_ext = np.array([0, 0, 0, 0, -1e5, 0]).reshape(6, 1)
+F_ext = np.array([0, 0, 0, 0, -1e6, 0]).reshape(6, 1)
 b1.set_F_ext(F_ext)
 
 bodies = [b1]
