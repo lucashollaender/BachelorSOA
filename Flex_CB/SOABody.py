@@ -3,7 +3,7 @@ import matplotlib.pyplot as plt
 import scipy.linalg as la
 from SOALIB import soalib as sb
 from scipy.integrate import solve_ivp
-from Flex_Point_CB.Structural_Analysis_CB_Rect import Structural_Analysis_CB_Rect
+from Flex_CB.Structural_Analysis_CB_Rect import Structural_Analysis_CB_Rect
 from Body_Properties import Joint, Rigid_Properties, Flex_Properties
 import pandas as pd
 
