@@ -193,7 +193,7 @@ class Structural_Analysis_PM_Rect:
         m = self.m
         m_nd = self.m_nd.reshape(-1, 1)
         L_elem = self.L_elem
-        PI_t = self.PI_t
+        gamma = self.PI_t
         n_md = self.n_md
         n_nd = self.n_nd
 
@@ -220,18 +220,18 @@ class Structural_Analysis_PM_Rect:
 
             for r in range(n_md):
                 F_0_sum[:, r] += m_nd[i] * \
-                    klkO_skew @ PI_t[i * 3: i * 3 + 3, r]
-                E_0_sum[:, r] += m_nd[i] * PI_t[i * 3: i*3 + 3, r]
-                p_1_sum[:, r] += m_nd[i] * PI_t[i * 3: i*3 + 3, r]
+                    klkO_skew @ gamma[i * 3: i * 3 + 3, r]
+                E_0_sum[:, r] += m_nd[i] * gamma[i * 3: i*3 + 3, r]
+                p_1_sum[:, r] += m_nd[i] * gamma[i * 3: i*3 + 3, r]
                 CkJk_1_sum[:, 3 * r: 3 * r + 3] += m_nd[i] * \
-                    sb.skew(PI_t[i * 3: i*3 + 3, r]) @ klkO_skew
+                    sb.skew(gamma[i * 3: i*3 + 3, r]) @ klkO_skew
                 for s in range(n_md):
-                    G_0_sum[r, s] += m_nd[i] * PI_t[i * 3: i *
-                                                    3 + 3, r].T @ PI_t[i * 3: i*3 + 3, s]
-                    CkJk_2_sum[3*r:3*r+3, 3*s:3*s+3] += m_nd[i] * sb.skew(PI_t[i * 3: i *
-                                                                               3 + 3, r]) @ sb.skew(PI_t[i * 3: i*3 + 3, s])
-                    F_1_sum[3*r:3*r+3, s] += m_nd[i] * sb.skew(PI_t[i * 3: i *
-                                                                    3 + 3, r]) @ PI_t[i * 3: i*3 + 3, s]
+                    G_0_sum[r, s] += m_nd[i] * gamma[i * 3: i *
+                                                     3 + 3, r].T @ gamma[i * 3: i*3 + 3, s]
+                    CkJk_2_sum[3*r:3*r+3, 3*s:3*s+3] += m_nd[i] * sb.skew(gamma[i * 3: i *
+                                                                                3 + 3, r]) @ sb.skew(gamma[i * 3: i*3 + 3, s])
+                    F_1_sum[3*r:3*r+3, s] += m_nd[i] * sb.skew(gamma[i * 3: i *
+                                                                     3 + 3, r]) @ gamma[i * 3: i*3 + 3, s]
 
         # Store modal integrals
         self.p_0 = 1/m * p_0_sum
@@ -266,7 +266,7 @@ class Structural_Analysis_PM_Rect:
         return np.vstack([rw1, rw2, rw3])
 
     def get_C_fl(self):
-        
+
         # Damping setup
         zeta = self.c * np.ones(self.n_md)
 
