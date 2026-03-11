@@ -386,7 +386,7 @@ class Structural_Analysis_PM_Rect:
 
         return K_st
 
-    def get_M_nd(self):
+    def get_M_st(self):
         # Nodal masses
         m_e = self.m_e
 
@@ -395,19 +395,48 @@ class Structural_Analysis_PM_Rect:
 
         # Store nodal masses and lenghts
         self.m_nd = m
+        
+        J_x = 1/12 * self.h * self.w * (self.h**2 + self.w**2)
+        I_y = 1/12 * self.h**3 * self.w
+        I_z = 1/12 * self.h * self.w**3
+        L_elem = self.L_elem
+        A = self.A
+        rho = self.rho
 
-        block = []
-        for i in range(self.n_nd):
-            block.append(np.zeros((3, 3)))
-            block.append(m[i] * np.eye(3, 3))
+        # Stiffness matrix
+        diag = [None] * 6
 
-        M = la.block_diag(*block)
+        diag[0] = np.array([1/3, 13/35+6*I_z/(5*A*L_elem**2), 13/35+6*I_y/(5*A*L_elem**2), J_x/(3*A), L_elem**2/105+2*I_y/(15*A), L_elem**2/105+2*I_z/(15*A), 1/3, 13/35+6*I_z/(5*A*L_elem**2), 13/35+6*I_y/(5*A*L_elem**2), J_x/(3*A), L_elem**2/105+2*I_y/(15*A), L_elem**2/105+2*I_z/(15*A)])
+        diag[1] = np.array([0, 0, -11*L_elem/210-I_y/(10*A*L_elem), 0, 0, 13*L_elem/420-I_z/(10*A*L_elem), 0, 0, 11*L_elem/210+I_y/(10*A*L_elem), 0])
+        diag[2] = np.array([0, 11*L_elem/210+I_z/(10*A*L_elem), 0, 0, -13*L_elem/420+I_y/(10*A*L_elem), 0, 0, -11*L_elem/210-I_z/(10*A*L_elem)])
+        diag[3] = np.array([1/6, 9/70-6*I_z/(5*A*L_elem**2), 9/70-6*I_y/(5*A*L_elem**2), J_x/(6*A), -L_elem**2/140-I_y/(30*A), -L_elem**2/140-I_z/(30*A)])
+        diag[4] = np.array([0, 0, 13*L_elem/420-I_y/(10*A*L_elem), 0])
+        diag[5] = np.array([0, -13*L_elem/420+I_z/(10*A*L_elem)])
 
-        return M
+        M = np.diag(diag[0], k=0)
+
+        for i in range(1, 6):
+            M += np.diag(diag[i], k=-2*i) + np.diag(diag[i], k=2*i)
+        
+        M = rho * A * L_elem * M
+
+        # Change so rotations first is along
+        perm = [3, 4, 5, 0, 1, 2, 9, 10, 11, 6, 7, 8]
+        M_perm = M[np.ix_(perm, perm)]
+
+        # Global stiffness matrix setup
+        M_st = np.zeros((6*self.n_nd, 6*self.n_nd))
+
+        for i in range(self.n_nd - 1):
+            M_i = np.zeros((6*self.n_nd, 6*self.n_nd))
+            M_i[i*6:i*6+12, i*6:i*6+12] = M_perm
+            M_st += M_i
+
+        return M_st
 
     def get_PI(self):
 
-        M = self.M_nd
+        M = self.M_st
         K = self.K_st
         # Indexing B(boundary) I(interior) Follows Adams flex notation
         boundary_nodes = [0]          # Cantilever beam
@@ -424,24 +453,49 @@ class Structural_Analysis_PM_Rect:
         M_II = M[np.ix_(I, I)]
 
         # We compute constraint modes from static deformation shape
-        Pi_b=-la.solve(K_II,K_IB)
+        PI_b=-la.solve(K_II,K_IB)
 
-        # Solve eigenvalue problem for Pi_t (Mass normalized!)
+                # Solve eigenvalue problem for Pi_t (Mass normalized!)
         eig_e, PI_e = la.eigh(K_II, M_II, subset_by_index=(0, self.n_md - 1))
 
-        # Store eigen values
+        self.eigval=eig_e
+        # Extract PI_e
+        self.PI_e = np.vstack([np.zeros((6, self.n_md)), PI_e])
 
+        """
         PI_c = np.block([
-        [PI_e, Pi_b],
-        [np.zeros((6, self.n_md)), np.eye(6)]])
+        [np.eye(6), np.zeros((6, self.n_md))],
+        [PI_b, PI_e]])
 
-        M_n=PI_c.T @ M @ PI_c
-        K_n=PI_c.T @ K @ PI_c
+        M_n = PI_c.T @ M @ PI_c
+        K_n = PI_c.T @ K @ PI_c
 
-        eigval, PI_n = la.eigh(K_n, M_n) #, subset_by_index=(0, self.n_md - 1)
+        omega2, PI_n = la.eigh(K_n, M_n)
 
-        self.eigval = eigval
-        PI=PI_c@PI_n
+        # Store eigen values
+        self.omega2 = omega2[6:]
+        self.omega = np.sqrt(self.omega2)
+
+        
+        print("PI_n")
+        print(pd.DataFrame(PI_n))
+        print("PI_c")
+        print(pd.DataFrame(PI_c))
+        
+        
+        PI_n = PI_n[:, 6:]
+
+        PI = PI_c @ PI_n
+        """
+
+        # Extract lambda_ and gamma
+        self.gamma = np.zeros((3*self.n_nd, self.n_md))
+        self.lambda_ = np.zeros((3*self.n_nd, self.n_md))
+        for i in range(self.n_nd):
+            self.lambda_[i*3:i*3+3, :] = self.PI_e[i*3:i*3+3, :]
+            self.gamma[i*3:i*3+3, :] = self.PI_e[i*3+3:i*3+6, :]
+
+        return self.PI_e
 
     def get_K_fl(self):
         # Initialize K
@@ -455,7 +509,7 @@ class Structural_Analysis_PM_Rect:
         m = self.m
         m_nd = self.m_nd.reshape(-1, 1)
         L_elem = self.L_elem
-        PI_t = self.PI_t
+        PI_t = self.gamma
         n_md = self.n_md
         n_nd = self.n_nd
 
@@ -499,7 +553,6 @@ class Structural_Analysis_PM_Rect:
         self.p_0 = 1/m * p_0_sum
         self.p_1 = 1/m * p_1_sum
         self.CkJk_0 = CkJk_0_sum
-        self.CkJk_0[0, 0] = self.CkJk[0]
         self.CkJk_1 = - CkJk_1_sum
         self.CkJk_2 = - CkJk_2_sum
         self.F_0 = F_0_sum
@@ -533,6 +586,7 @@ class Structural_Analysis_PM_Rect:
         self.L = rigid.L
         self.A = rigid.w * rigid.h
         self.m = rigid.rho * self.A * self.L
+        self.rho = rigid.rho
         self.E = flex.E
         self.G = flex.G
         self.n_nd = flex.n_nd
@@ -544,7 +598,7 @@ class Structural_Analysis_PM_Rect:
 
         # Structural analysis
         self.K_st = self.get_K_st()
-        self.M_nd = self.get_M_nd()
+        self.M_st = self.get_M_st()
         self.PI = self.get_PI()
         self.K_fl = self.get_K_fl()
         self.M_fl = self.get_M_fl()
@@ -1315,13 +1369,13 @@ from SOALIB import soalib as sb
 import pandas as pd
 
 L = 1
-H_type1 = "revy"
+H_type1 = "fixed"
 # revy and force in y works
 klOC = np.array([L/2, 0, 0])
 
 # n_md_max = (n_nd - 1) * 3
 
-E, G, rho, n_nd, n_md = 2.1e11, 8e10, 7850, 5, 3
+E, G, rho, n_nd, n_md = 2.1e11, 8e10, 7850, 4, 3
 
 w, h = 0.04, 0.04
 
@@ -1338,14 +1392,18 @@ print(np.linalg.norm(PIe[5, :]))
 
 K = b1.flex.K_fl
 M = b1.flex.M_fl
-print(pd.DataFrame(M[-6:, -6:]))
 
-F_ext = np.array([0, 0, 0, 0, -1e5,0]).reshape(6, 1)
+F_ext = np.array([0, 0, 0,0, 0 ,-1e5]).reshape(6, 1)
 b1.set_F_ext(F_ext)
 #b1.set_initial_beta0(-100)
 bodies = [b1]
 
 system = MultibodySystem(bodies)
+
+print("PI")
+print(pd.DataFrame(b1.flex.PI))
+print("eigval")
+print(pd.DataFrame(b1.flex.eigval))
 
 tf = 3
 dt = 0.01
@@ -1353,8 +1411,8 @@ dt = 0.01
 sim = Simulation(system, tf, dt)
 
 sim.camera_speed(0)
-sim.camera_ver(45)
-sim.camera_hor(45)
+sim.camera_ver(0)
+sim.camera_hor(90)
 
 sim.IntegrateSystem()
 
@@ -1363,11 +1421,8 @@ sim.IntegrateSystem()
 sim.animate_nodes()
 
 
+
 """
-print("PI")
-print(pd.DataFrame(b1.flex.PI))
-print("eigval")
-print(pd.DataFrame(b1.flex.eigval))
 print("K_fl")
 print(pd.DataFrame(b1.flex.K_fl))
 print("M_fl_red")

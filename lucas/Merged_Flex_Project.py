@@ -1334,13 +1334,13 @@ from SOALIB import soalib as sb
 import pandas as pd
 
 L = 1
-H_type1 = "revy"
+H_type1 = "fixed"
 # revy and force in y works
 klOC = np.array([L/2, 0, 0])
 
 # n_md_max = (n_nd - 1) * 3
 
-E, G, rho, n_nd, n_md = 2.1e11, 8e10, 7850, 5, 3
+E, G, rho, n_nd, n_md = 2.1e11, 8e10, 7850, 100, 4
 
 w, h = 0.04, 0.04
 
@@ -1359,15 +1359,15 @@ K = b1.flex.K_fl
 M = b1.flex.M_fl
 print(pd.DataFrame(M[-6:, -6:]))
 
-F_ext = np.array([0, 0, 0, 0, -1e5,0]).reshape(6, 1)
+F_ext = np.array([0, 0, 0, 0, -7e4,0]).reshape(6, 1)
 b1.set_F_ext(F_ext)
 #b1.set_initial_beta0(-100)
 bodies = [b1]
 
 system = MultibodySystem(bodies)
 
-tf = 3
-dt = 0.01
+tf = 1.5
+dt = 0.02
 
 sim = Simulation(system, tf, dt)
 
