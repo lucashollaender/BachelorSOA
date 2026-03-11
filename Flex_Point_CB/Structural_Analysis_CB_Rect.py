@@ -5,7 +5,7 @@ from SOALIB import soalib as sb
 from Body_Properties import Rigid_Properties, Flex_Properties
 
 
-class Structural_Analysis_PM_Rect:
+class Structural_Analysis_CB_Rect:
     """
     Class:
     Structural analysis of 3D rectangular cantilever beam with point mass assumption.
