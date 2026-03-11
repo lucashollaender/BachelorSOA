@@ -407,60 +407,41 @@ class Structural_Analysis_PM_Rect:
 
     def get_PI(self):
 
-        # Fixed BC
-        K_st = self.K_st[6:, 6:]
-        M_nd = self.M_nd[6:, 6:]
+        M = self.M_nd
+        K = self.K_st
+        # Indexing B(boundary) I(interior) Follows Adams flex notation
+        boundary_nodes = [0]          # Cantilever beam
+        B = []
+        for i in boundary_nodes:
+            B.extend(range(6*i, 6*i+6))
+        
+        all_dofs = list(range(6*self.n_nd))
+        I = [k for k in all_dofs if k not in B]
+        K_BB = K[np.ix_(B, B)]
+        K_BI = K[np.ix_(B, I)]
+        K_IB = K[np.ix_(I, B)]
+        K_II = K[np.ix_(I, I)]
+        M_II = M[np.ix_(I, I)]
 
-        # Rearranging of M and K
-        index = np.zeros((1, 0))
-
-        for i in range(self.n_elem):
-            index_add = np.linspace(i * 6 + 3, i * 6 + 5, 3).reshape(1, 3)
-            index = np.hstack([index, index_add])
-
-        for i in range(self.n_elem):
-            index_add = np.linspace(i * 6, i * 6 + 2, 3).reshape(1, 3)
-            index = np.hstack([index, index_add])
-
-        index = index.flatten().astype(int)
-        K = K_st[np.ix_(index, index)]
-        M = M_nd[np.ix_(index, index)]
-
-        # Find K_tt, K_rr, K_tr, K_rt and M_c
-        sz = M.shape[0]
-        sz2 = int(sz / 2)
-
-        K_tt = K[0:sz2, 0:sz2]
-        K_rr = K[sz2:sz, sz2:sz]
-        K_tr = K[0:sz2, sz2:sz]
-        K_rt = K[sz2:sz, 0:sz2]
-
-        M_c = M[0:sz2, 0:sz2]
-
-        # Find K_e (np.linalg.inv(K_rr) * K_rt)
-        X = la.solve(K_rr, K_rt, assume_a="sym")
-        K_c = K_tt - K_tr @ X
+        # We compute constraint modes from static deformation shape
+        Pi_b=-la.solve(K_II,K_IB)
 
         # Solve eigenvalue problem for Pi_t (Mass normalized!)
-        eigval, PI_t = la.eigh(K_c, M_c, subset_by_index=(0, self.n_md - 1))
+        eig_e, PI_e = la.eigh(K_II, M_II, subset_by_index=(0, self.n_md - 1))
 
         # Store eigen values
+
+        PI_c = np.block([
+        [PI_e, Pi_b],
+        [np.zeros((6, self.n_md)), np.eye(6)]])
+
+        M_n=PI_c.T @ M @ PI_c
+        K_n=PI_c.T @ K @ PI_c
+
+        eigval, PI_n = la.eigh(K_n, M_n) #, subset_by_index=(0, self.n_md - 1)
+
         self.eigval = eigval
-
-        # Compute rotational part of PI
-        PI_r = - X @ PI_t
-
-        # Store PI_r and PI_t for modal integrals
-        self.PI_r = np.vstack([np.zeros((3, self.n_md)), PI_r])
-        self.PI_t = np.vstack([np.zeros((3, self.n_md)), PI_t])
-
-        # PI setup
-        PI = np.zeros((2 * PI_t.shape[0] + 6, PI_t.shape[1]))
-        for i in range(self.n_elem):
-            PI[i * 6 + 6:i * 6 + 9, :] = PI_r[i * 3:i * 3 + 3, :]
-            PI[i * 6 + 9:i * 6 + 12, :] = PI_t[i * 3:i * 3 + 3, :]
-
-        return PI
+        PI=PI_c@PI_n
 
     def get_K_fl(self):
         # Initialize K
