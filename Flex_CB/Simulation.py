@@ -295,10 +295,10 @@ class Simulation:
 
             # Update timer
             time_text.set_text(f'Time: {t[frame_idx]:.2f} s')
-
-            # Handle camera rotation settings
-            ax.view_init(elev=self.setting.camera_ver,
-                         azim=frame_idx * self.setting.camera_speed * 40 * dt + self.setting.camera_hor)
+            if self.setting.camera_speed != 0:
+                # Handle camera rotation settings
+                ax.view_init(elev=self.setting.camera_ver,
+                            azim=frame_idx * self.setting.camera_speed * 40 * dt + self.setting.camera_hor)
 
             return (*lines, node_dots, time_text)
 
