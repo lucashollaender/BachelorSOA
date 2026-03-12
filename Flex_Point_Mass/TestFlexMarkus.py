@@ -10,7 +10,7 @@ H_type = "fixed"
 
 klOC = np.array([L/2, 0, 0])
 
-E, G, c, rho, n_nd, n_md = 230e9, 80e9, 0.02, 7850, 6, 3
+E, G, c, rho, n_nd, n_md = 230e9, 80e9, 0.02, 7850, 6, 4
 w, h = 0.1, 0.1
 
 j1 = Joint(L, H_type)
@@ -24,7 +24,7 @@ print(np.linalg.norm(PIe[3, :]))
 print(np.linalg.norm(PIe[4, :]))
 print(np.linalg.norm(PIe[5, :]))
 
-F_ext = np.array([0, 0, 0, 0, -1e6, 0]).reshape(6, 1)
+F_ext = np.array([0, 0, 0, 0, -1e3, 0]).reshape(6, 1)
 b1.set_F_ext(F_ext)
 
 bodies = [b1]
