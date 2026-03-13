@@ -3,17 +3,17 @@ import scipy.linalg as la
 import matplotlib.pyplot as plt
 from Body_Properties import Joint, Rigid_Properties, Flex_Properties
 from Structural_Analysis_CB_Rect import Structural_Analysis_CB_Rect
-
+import pandas as pd
 
 # Settings
 L = 1.0
 
-E = 230e9
-G = 80e9
+E = 1e7
+G = 3.8e6
 c = 0.02
-rho = 7850
+rho = 1000
 
-n_nd = 10
+n_nd = 100
 n_md = 8
 
 w = 0.10
