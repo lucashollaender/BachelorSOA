@@ -88,7 +88,7 @@ class ATBI_Flex:
             ang = theta.item()
             q = np.array([[0], [0], [np.sin(ang/2)], [np.cos(ang/2)]])
             q = q / np.linalg.norm(q)
-            #print(ang)
+            # print(ang)
             return np.vstack((q, klOO)), q
 
         elif joint_type == "spherical":
@@ -194,7 +194,7 @@ class ATBI_Flex:
 
             # External force
             # F_ext_term = np.zeros((b_fl[k].shape[0], 1))
-            F_ext_term = np.exp(- 2 * t) * \
+            F_ext_term = np.exp(- 10 * t) * \
                 np.vstack([PI.T @ F_ext, sb.phi(klOO) @ F_ext])
 
             """
@@ -218,7 +218,8 @@ class ATBI_Flex:
                 P_pr_plus[k] = tau_pr_bar @ P_pr[k]
 
                 # 13.7
-                z = b_fl[k] + K_fl @ np.vstack([eta, np.zeros((6, 1))]) - F_ext_term + C_fl @ np.vstack([eta_dot, np.zeros((6, 1))])
+                z = b_fl[k] + K_fl @ np.vstack([eta, np.zeros((6, 1))]) - \
+                    F_ext_term + C_fl @ np.vstack([eta_dot, np.zeros((6, 1))])
                 eps_m = - z[0:n_md]  # tau_m (assumed to be zero): dim(n_md, 1)
                 nu_m[k] = D_m_inv @ eps_m
 
@@ -251,7 +252,8 @@ class ATBI_Flex:
                 P_pr_plus[k] = tau_pr_bar @ P_pr[k]
 
                 # 13.7
-                z = A_fl @ R6 @ z_pr_plus[k-1] + b_fl[k] + K_fl @ np.vstack([eta, np.zeros((6, 1))]) - F_ext_term + C_fl @ np.vstack([eta_dot, np.zeros((6, 1))])
+                z = A_fl @ R6 @ z_pr_plus[k-1] + b_fl[k] + K_fl @ np.vstack([eta, np.zeros(
+                    (6, 1))]) - F_ext_term + C_fl @ np.vstack([eta_dot, np.zeros((6, 1))])
                 eps_m = - z[0:n_md]  # tau_m (assumed to be zero): dim(n_md, 1)
                 nu_m[k] = D_m_inv @ eps_m
 
