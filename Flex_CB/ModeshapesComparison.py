@@ -39,7 +39,7 @@ r1.CkJk = np.array([
 # Get numerical mode shapes
 analysis = Structural_Analysis_CB_Rect(j1, r1, f1)
 PI_e = analysis.PI_e
-
+# e
 
 # Computing natural frequencies
 K = analysis.K_st
