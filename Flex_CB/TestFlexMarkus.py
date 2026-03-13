@@ -5,67 +5,52 @@ from Body_Properties import Joint, Rigid_Properties, Flex_Properties
 import numpy as np
 import matplotlib.pyplot as plt
 
-# Pendulum test
+# -------------------------------------------------
+# Axial load test
+# -------------------------------------------------
 L = 0.60
 
-# Settings
-E = 230e9
-G = 80e9
-c = 0.30
-rho = 7850
+# Material
+E = 1e7
+G = 3.8e6
+c = 0.02
+rho = 1000
 
-# nodes/modes
-n_nd = 4
-n_md = 1
+# Use enough modes if you want axial deformation represented
+n_nd = 8
+n_md = 8
 
 # Geometry
-w = 0.025
-h = 0.025
+w = 0.1
+h = 0.1
 
 # -------------------------------------------------
-# Create bodies
+# Fixed beam
 # -------------------------------------------------
-
-# Moving tip body: revolute about y
-j1 = Joint(L, "revy")
+j1 = Joint(L, "fixed")
 r1 = Rigid_Properties(rho, w, h)
 f1 = Flex_Properties(E, G, c, n_nd, n_md)
 b1 = SOABody(j1, r1, f1)
 
-# Moving tip body: revolute about y
-j2 = Joint(L, "revy")
-r2 = Rigid_Properties(rho, w, h)
-f2 = Flex_Properties(E, G, c, n_nd, n_md)
-b2 = SOABody(j2, r2, f2)
+# IMPORTANT:
+# fixed joint => theta, beta, tau must have size 0
+b1.set_initial_theta0(np.zeros((0, 1)))
+b1.set_initial_beta0(np.zeros((0, 1)))
+b1.set_tau(np.zeros((0, 1)))
 
-# Fixed base body
-j3 = Joint(L, "fixed")
-r3 = Rigid_Properties(rho, w, h)
-f3 = Flex_Properties(E, G, c, n_nd, n_md)
-b3 = SOABody(j3, r3, f3)
-
-# IC
-
-b1.set_initial_theta0(np.array([[0.0]]))
-b1.set_initial_beta0(np.array([[0.0]]))
-
-# No joint torque input
-b1.set_tau(np.array([[0.0]]))
-
-# Moment about y
-F_ext1 = np.array([0.0, 10, 0.0, 0.0, 0.0, 0.0]).reshape(6, 1)
-F_ext2 = np.array([0.0, 50, 0.0, 0.0, 0.0, 0.0]).reshape(6, 1)
+# External axial force in +x
+# F_ext = [Mx, My, Mz, Fx, Fy, Fz]^T
+F_ax = 1e4
+F_ext1 = np.array([0.0, 0.0, 0.0, F_ax, 0.0, 0.0]).reshape(6, 1)
 b1.set_F_ext(F_ext1)
-b2.set_F_ext(F_ext2)
 
 # -------------------------------------------------
 # Build system
 # -------------------------------------------------
-
-bodies = [b1, b2, b3]
+bodies = [b1]
 system = MultibodySystem(bodies)
 
-tf = 10
+tf = 2.0
 dt = 0.001
 
 sim = Simulation(system, tf, dt)
@@ -80,20 +65,24 @@ sim.IntegrateSystem("BDF")
 # -------------------------------------------------
 # Post-processing
 # -------------------------------------------------
-
 nodal_pos = sim.nNodalPos()
 time = np.array(sim.data.time)
 
-# frame[-1][-1] = last node of outermost tip body
 tip_xyz = np.array([frame[-1][-1].flatten() for frame in nodal_pos])
 
+x_tip = tip_xyz[:, 0]
+y_tip = tip_xyz[:, 1]
+z_tip = tip_xyz[:, 2]
+
+x_extension = x_tip - x_tip[0]
+
 plt.figure(figsize=(9, 5))
-plt.plot(time, tip_xyz[:, 0], label="x_tip")
-plt.plot(time, tip_xyz[:, 1], label="y_tip")
-plt.plot(time, tip_xyz[:, 2], label="z_tip")
+plt.plot(time, x_extension, label="axial extension")
+plt.plot(time, y_tip - y_tip[0], label="y drift")
+plt.plot(time, z_tip - z_tip[0], label="z drift")
 plt.xlabel("Time [s]")
-plt.ylabel("Tip position [m]")
-plt.title("Two-body revy motion from external moment")
+plt.ylabel("Displacement [m]")
+plt.title("Fixed beam under axial x-load")
 plt.grid(True)
 plt.legend()
 plt.tight_layout()
@@ -109,7 +98,13 @@ ax.set_title("Tip trajectory")
 plt.tight_layout()
 plt.show()
 
+print("Initial tip position [m]:")
+print(tip_xyz[0])
+
 print("Final tip position [m]:")
 print(tip_xyz[-1])
+
+print("Final axial extension [m]:")
+print(x_extension[-1])
 
 sim.animate_nodes()
