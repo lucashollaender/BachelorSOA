@@ -38,7 +38,7 @@ class Simulation:
 
     def IntegrateSystem(self, solver="RK4"):
         self.setting.solver = solver
-        #print("Integrating...")
+        # print("Integrating...")
 
         # Progress bar
         pbar = tqdm(total=100, desc=f"Integration ({solver})", unit="%")
@@ -76,8 +76,8 @@ class Simulation:
                 y0=self.system.S0,
                 t_eval=t_eval,
                 method=self.setting.solver,
-                rtol=1e-6,
-                atol=1e-8
+                rtol=1e-4,
+                atol=1e-6
             )
 
             self.data.time = sol.t

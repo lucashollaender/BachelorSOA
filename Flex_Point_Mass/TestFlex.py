@@ -34,7 +34,7 @@ M = b1.flex.M_fl
 
 F_ext = np.array([0, 0, 0, 0, 1e5, 0]).reshape(6, 1)
 b1.set_F_ext(F_ext)
-#b1.set_initial_beta0(2)
+# b1.set_initial_beta0(2)
 
 bodies = [b1]
 

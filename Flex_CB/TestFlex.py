@@ -65,7 +65,7 @@ sim.IntegrateSystem("Radau")
 
 save_dir = r"C:\Users\jepp6\OneDrive - Aarhus universitet\Dokumenter\Noter\6. Semester\Bachelor Projekt\BachelorCode\Renders"
 
-#sim.animate_nodes(filename="FlexOORotMissing", save_dir=save_dir)
+# sim.animate_nodes(filename="FlexOORotMissing", save_dir=save_dir)
 sim.animate_nodes()
 
 """
