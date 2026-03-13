@@ -115,6 +115,12 @@ class SOABody:
     def set_initial_beta0(self, beta0):
         self.initialcondition.beta0 = beta0
 
+    def set_initial_eta0(self, eta0):
+        self.initialcondition.eta0 = eta0
+    
+    def set_initial_eta_dot0(self, eta_dot0):
+        self.initialcondition.eta_dot0 = eta_dot0
+
     def get_D_m_inv(self, Gamma, x):
         # Calculate D_m_inv
         if x == 0:

@@ -3,6 +3,7 @@ import matplotlib.pyplot as plt
 import matplotlib as mpl
 from matplotlib.animation import FuncAnimation
 from scipy.integrate import solve_ivp
+from scipy.spatial.transform import Rotation
 import os
 from MultibodySystem import MultibodySystem
 from SystemState import SystemState
@@ -92,7 +93,7 @@ class Simulation:
         if dt0 >= self.dt:
             scale = int(dt0 / self.dt)
             nt = int(len(self.data.time) / scale)
-            self.data.time = np.linspace(0, self.tf, nt)
+            self.data.time = np.linspace(0, self.data.time[-1], nt)
         else:
             print("Error! Invalid animation time step! (ani_dt < sim_dt)")
 
@@ -165,7 +166,8 @@ class Simulation:
             # End node (O_-1+)
             last_end = np.zeros((3, 1))
 
-            Ri = np.eye(3)
+            R_i = np.eye(3)
+            R_n = np.eye(3)
 
             nodes_i = []
 
@@ -174,7 +176,7 @@ class Simulation:
                 eta = state.Eta[k]
                 body = self.system.bodies[k]
                 n_nd = body.flex.n_nd
-                PI = body.flex.PI_e
+                PI = body.flex.PI
                 L_elem = body.flex.L_elem
 
                 nodes_k = []
@@ -183,7 +185,7 @@ class Simulation:
                 q = X[i][k][0:4]    # Quaternion: k+1 to k
 
                 # Rotation
-                Ri = Ri @ sb.q2R(q.flatten(), 3)
+                R_i = R_i @ sb.q2R(q.flatten(), 3)
 
                 for j in range(n_nd):
                     # Undeformed position in local frame (Structural analysis assumes beam along Z-axis)
@@ -194,8 +196,14 @@ class Simulation:
                     u_j = PI[j*6+3: j*6+6, :] @ eta
 
                     # Global position of node j (of body k)
-                    p_glob = last_end + Ri @ (pos_und + u_j)
+                    p_glob = last_end + R_i @ (pos_und + u_j)
                     nodes_k.append(p_glob)
+
+                # Rotation of last node
+                R_n_vec = PI[-6:-3, :] @ eta
+                R_n = Rotation.from_rotvec(R_n_vec.flatten()).as_matrix()
+
+                R_i = R_i @ R_n
 
                 last_end = nodes_k[-1]
                 nodes_i.append(nodes_k)
@@ -270,7 +278,12 @@ class Simulation:
         # Initialize the timer text
         time_text = ax.text2D(0.05, 0.95, '', transform=ax.transAxes)
 
+        # Camera setting
+        camera_initialized = False
+
         def update(frame_idx):
+            nonlocal camera_initialized
+
             current_state = nodal_pos[frame_idx]
 
             all_xs, all_ys, all_zs = [], [], []
@@ -295,11 +308,15 @@ class Simulation:
 
             # Update timer
             time_text.set_text(f'Time: {t[frame_idx]:.2f} s')
-            if self.setting.camera_speed != 0:
-                # Handle camera rotation settings
-                ax.view_init(elev=self.setting.camera_ver,
-                            azim=frame_idx * self.setting.camera_speed * 40 * dt + self.setting.camera_hor)
 
+            # Camera control
+            if self.setting.camera_speed == 0 and frame_idx == 0 and camera_initialized == False:
+                ax.view_init(elev=self.setting.camera_ver, azim=self.setting.camera_hor)
+                camera_initialized = True
+            elif self.setting.camera_speed != 0:
+                ax.view_init(elev=self.setting.camera_ver,
+                    azim=self.setting.camera_hor + frame_idx * self.setting.camera_speed * 40 * dt)
+                
             return (*lines, node_dots, time_text)
 
         # Create Animation
