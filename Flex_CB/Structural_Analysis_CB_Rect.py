@@ -201,10 +201,10 @@ class Structural_Analysis_CB_Rect:
         self.gamma = np.zeros((3*self.n_nd, self.n_md))
         self.lambda_ = np.zeros((3*self.n_nd, self.n_md))
         for i in range(self.n_nd):
-            self.lambda_[i*3:i*3+3, :] = PI[i*3:i*3+3, :]
-            self.gamma[i*3:i*3+3, :] = PI[i*3+3:i*3+6, :]
+            self.lambda_[i*3:i*3+3, :] = PI_e[i*3:i*3+3, :]
+            self.gamma[i*3:i*3+3, :] = PI_e[i*3+3:i*3+6, :]
 
-        return PI
+        return self.PI_e
 
     def get_K_fl(self):
         # Initialize K

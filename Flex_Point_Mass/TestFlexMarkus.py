@@ -24,22 +24,21 @@ print(np.linalg.norm(PIe[3, :]))
 print(np.linalg.norm(PIe[4, :]))
 print(np.linalg.norm(PIe[5, :]))
 
-F_ext = np.array([0, 0, 0, 0, -1e3, 0]).reshape(6, 1)
+F_ext = np.array([0, 0, 0, 0, 1e5, 0]).reshape(6, 1)
 b1.set_F_ext(F_ext)
 
 bodies = [b1]
 system = MultibodySystem(bodies)
 
-tf = 0.5
-dt = 0.0001
+tf = 1
+dt = 0.01
 
 sim = Simulation(system, tf, dt)
-sim.setting.solver = "RK4"
 
 sim.set_camera_ver(90)
 sim.set_camera_hor(90)
 sim.set_camera_speed(0)
-sim.set_ani_dt(0.001)
+sim.set_ani_dt(0.01)
 
 sim.IntegrateSystem()
 

@@ -37,7 +37,7 @@ class Simulation:
 
     def IntegrateSystem(self, solver="RK4"):
         self.setting.solver = solver
-        #print("Integrating...")
+        # print("Integrating...")
 
         # Progress bar
         pbar = tqdm(total=100, desc=f"Integration ({solver})", unit="%")
@@ -75,8 +75,8 @@ class Simulation:
                 y0=self.system.S0,
                 t_eval=t_eval,
                 method=self.setting.solver,
-                rtol=1e-6,
-                atol=1e-8
+                rtol=1e-4,
+                atol=1e-6
             )
 
             self.data.time = sol.t
@@ -295,10 +295,10 @@ class Simulation:
 
             # Update timer
             time_text.set_text(f'Time: {t[frame_idx]:.2f} s')
-
-            # Handle camera rotation settings
-            ax.view_init(elev=self.setting.camera_ver,
-                         azim=frame_idx * self.setting.camera_speed * 40 * dt + self.setting.camera_hor)
+            if self.setting.camera_speed != 0:
+                # Handle camera rotation settings
+                ax.view_init(elev=self.setting.camera_ver,
+                             azim=frame_idx * self.setting.camera_speed * 40 * dt + self.setting.camera_hor)
 
             return (*lines, node_dots, time_text)
 
