@@ -14,7 +14,7 @@ c = 0.02
 rho = 1000
 
 n_nd = 100
-n_md = 8
+n_md = 10
 
 w = 0.10
 h = 0.06   # non-square section helps separate bending pairs
