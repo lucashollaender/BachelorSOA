@@ -6,16 +6,16 @@ import numpy as np
 from SOALIB import soalib as sb
 import pandas as pd
 
-klOO1 = np.array([0, 0, 5]).reshape(3, 1)
-klOO2 = np.array([5, 0, 0]).reshape(3, 1)
+klOO1 = np.array([0, 0, 1]).reshape(3, 1)
+klOO2 = np.array([1, 0, 0]).reshape(3, 1)
 H_type1 = "fixed"
 H_type2 = "fixed"
 
 # n_md_max = (n_nd - 1) * 3
 
-E, G, c, rho, n_nd, n_md = 230e9, 80e9, 0.02, 7850, 8, 6
+E, G, c, rho, n_nd, n_md = 230e9, 80e9, 0.02, 7850, 8, 7
 
-w, h = 0.1, 0.1
+w, h = 0.04, 0.04
 
 j1 = Joint(klOO1, H_type1)
 r1 = Rigid_Properties(rho, w, h)
@@ -39,13 +39,13 @@ M = b1.flex.M_fl
 
 F_ext1 = np.array([0, 0, 0, 0, 1e5, 0]).reshape(6, 1)
 #b1.set_F_ext(F_ext1)
-F_ext2 = np.array([1e12, 0, 0, 0, 0, 0]).reshape(6, 1)
-#b2.set_F_ext(F_ext2)
+F_ext2 = np.array([1e4, 0, 0, 0, 0, 0]).reshape(6, 1)
+b2.set_F_ext(F_ext2)
 #b1.set_initial_beta0(2)
 
 
 #eta0 = np.vstack([np.array([5]), np.zeros((n_md-1, 1))]).reshape(6, 1)
-eta0 = np.array([0, 0, 0, 0, 10, 0]).reshape(6, 1)
+#eta0 = np.array([0, 0, 0, 0, 10, 0]).reshape(6, 1)
 #b1.set_initial_eta0(eta0)
 
 bodies = [b1, b2]
