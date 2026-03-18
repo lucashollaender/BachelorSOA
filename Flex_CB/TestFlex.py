@@ -20,6 +20,7 @@ j1 = Joint(L, H_type1)
 r1 = Rigid_Properties(rho, w, h)
 f1 = Flex_Properties(E, G, c, n_nd, n_md)
 
+
 j2 = Joint(L, H_type2)
 r2 = Rigid_Properties(rho, w, h)
 f2 = Flex_Properties(E, G, c, n_nd, n_md)
@@ -36,16 +37,16 @@ print(np.linalg.norm(PIe[5, :]))
 K = b1.flex.K_fl
 M = b1.flex.M_fl
 
-#F_ext1 = np.array([0, 0, 5e5, 0, 0, 0]).reshape(6, 1)
-#b1.set_F_ext(F_ext1)
+# F_ext1 = np.array([0, 0, 5e5, 0, 0, 0]).reshape(6, 1)
+# b1.set_F_ext(F_ext1)
 F_ext2 = np.array([0, 0, 0, 0, -5e4, 0]).reshape(6, 1)
 b2.set_F_ext(F_ext2)
 b1.set_initial_beta0(2)
 
 
-#eta0 = np.vstack([np.array([5]), np.zeros((n_md-1, 1))]).reshape(6, 1)
-#eta_dot0 = np.array([0, 0, 0, 0, 0, 0]).reshape(6, 1)
-#b1.set_initial_eta_dot0(eta_dot0)
+# eta0 = np.vstack([np.array([5]), np.zeros((n_md-1, 1))]).reshape(6, 1)
+# eta_dot0 = np.array([0, 0, 0, 0, 0, 0]).reshape(6, 1)
+# b1.set_initial_eta_dot0(eta_dot0)
 
 bodies = [b1, b2]
 

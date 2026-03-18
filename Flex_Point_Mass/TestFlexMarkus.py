@@ -19,6 +19,7 @@ b1 = SOABody(j1, r1, f1)
 
 PIe = b1.flex.PI_end
 
+
 print(np.linalg.norm(PIe[3, :]))
 print(np.linalg.norm(PIe[4, :]))
 print(np.linalg.norm(PIe[5, :]))
