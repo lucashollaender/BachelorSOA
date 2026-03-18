@@ -305,6 +305,7 @@ class Structural_Analysis_CB_Rect:
         return C_fl
 
     def __init__(self, joint: Joint, rigid: Rigid_Properties, flex: Flex_Properties):
+        self.klOO = joint.klOO
         self.klOC = joint.klOC
         self.w = rigid.w
         self.h = rigid.h

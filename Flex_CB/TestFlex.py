@@ -6,21 +6,22 @@ import numpy as np
 from SOALIB import soalib as sb
 import pandas as pd
 
-L = 5
-H_type1 = "revz"
+klOO1 = np.array([0, 0, 5]).reshape(3, 1)
+klOO2 = np.array([5, 0, 0]).reshape(3, 1)
+H_type1 = "fixed"
 H_type2 = "fixed"
 
 # n_md_max = (n_nd - 1) * 3
 
-E, G, c, rho, n_nd, n_md = 230e9, 80e9, 0.002, 7850, 8, 6
+E, G, c, rho, n_nd, n_md = 230e9, 80e9, 0.02, 7850, 8, 6
 
 w, h = 0.1, 0.1
 
-j1 = Joint(L, H_type1)
+j1 = Joint(klOO1, H_type1)
 r1 = Rigid_Properties(rho, w, h)
 f1 = Flex_Properties(E, G, c, n_nd, n_md)
 
-j2 = Joint(L, H_type2)
+j2 = Joint(klOO2, H_type2)
 r2 = Rigid_Properties(rho, w, h)
 f2 = Flex_Properties(E, G, c, n_nd, n_md)
 
@@ -36,22 +37,22 @@ print(np.linalg.norm(PIe[5, :]))
 K = b1.flex.K_fl
 M = b1.flex.M_fl
 
-#F_ext1 = np.array([0, 0, 5e5, 0, 0, 0]).reshape(6, 1)
+F_ext1 = np.array([0, 0, 0, 0, 1e5, 0]).reshape(6, 1)
 #b1.set_F_ext(F_ext1)
-F_ext2 = np.array([0, 0, 0, 0, -5e4, 0]).reshape(6, 1)
-b2.set_F_ext(F_ext2)
-b1.set_initial_beta0(2)
+F_ext2 = np.array([1e12, 0, 0, 0, 0, 0]).reshape(6, 1)
+#b2.set_F_ext(F_ext2)
+#b1.set_initial_beta0(2)
 
 
 #eta0 = np.vstack([np.array([5]), np.zeros((n_md-1, 1))]).reshape(6, 1)
-#eta_dot0 = np.array([0, 0, 0, 0, 0, 0]).reshape(6, 1)
-#b1.set_initial_eta_dot0(eta_dot0)
+eta0 = np.array([0, 0, 0, 0, 10, 0]).reshape(6, 1)
+#b1.set_initial_eta0(eta0)
 
 bodies = [b1, b2]
 
 system = MultibodySystem(bodies)
 
-tf = 3
+tf = 1
 dt = 0.01
 
 sim = Simulation(system, tf, dt)

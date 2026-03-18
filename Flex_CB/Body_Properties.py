@@ -6,13 +6,13 @@ from SOALIB import soalib as sb
 
 class Joint:
     # Joint class with H_type, H and klOO
-    def __init__(self, L, H_type: str):
+    def __init__(self, klOO, H_type: str):
         # Parameters
         self.type = H_type
         self.H = sb.hinge_map(H_type)
-        self.L = L
-        self.klOC = np.array([L/2, 0, 0]).reshape(3, 1)
-        self.klOO = np.array([L, 0, 0]).reshape(3, 1)
+        self.klOO = klOO
+        self.L = np.linalg.norm(klOO)
+        self.klOC = klOO / 2
 
     # Unpacking size
     def theta_size(self):

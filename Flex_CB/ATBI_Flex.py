@@ -194,9 +194,9 @@ class ATBI_Flex:
 
             # External force
             # F_ext_term = np.zeros((b_fl[k].shape[0], 1))
-            F_ext_term = np.exp(- 5 * t) * np.vstack([PI.T @ F_ext, sb.phi(klOO) @ F_ext])
+            #F_ext_term = np.exp(- 5 * t) * np.vstack([PI.T @ F_ext, sb.phi(klOO) @ F_ext])
 
-            #F_ext_term = np.vstack([PI.T @ F_ext, sb.phi(klOO) @ F_ext])
+            F_ext_term = np.vstack([PI.T @ F_ext, sb.phi(klOO) @ F_ext])
 
             """
             if t <= 0.25:

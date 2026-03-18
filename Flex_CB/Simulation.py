@@ -178,6 +178,7 @@ class Simulation:
                 n_nd = body.flex.n_nd
                 PI = body.flex.PI
                 L_elem = body.flex.L_elem
+                klOO_nd = body.flex.klOO_nd
 
                 nodes_k = []
 
@@ -188,8 +189,8 @@ class Simulation:
                 R_i = R_i @ sb.q2R(q.flatten(), 3)
 
                 for j in range(n_nd):
-                    # Undeformed position in local frame (Structural analysis assumes beam along Z-axis)
-                    pos_und = np.array([[j * L_elem], [0], [0]])
+                    # Undeformed position in local frame
+                    pos_und = klOO_nd[j]
 
                     # Translational deformation for node j
                     # (Translations are stored at indices j*6+3 to j*6+6 in the PI matrix)

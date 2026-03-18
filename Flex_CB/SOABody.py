@@ -41,6 +41,7 @@ class SOABody:
         rigid.A = rigid.h * rigid.w
         rigid.L = joint.L
         flex.L_elem = joint.L / flex.n_elem
+        flex.klOO_nd = [j * (joint.klOO / flex.n_elem) for j in range(flex.n_nd)]
         self.m = rigid.rho * rigid.A * joint.L
         self.rigid.CkJk = np.array([1/12 * self.m * (rigid.h**2 + rigid.w**2), 1/12 * self.m * (
             rigid.h**2 + joint.L**2), 1/12 * self.m * (rigid.w**2 + joint.L**2)])
