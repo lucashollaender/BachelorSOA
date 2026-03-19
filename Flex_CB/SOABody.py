@@ -41,6 +41,7 @@ class SOABody:
         rigid.A = rigid.h * rigid.w
         rigid.L = joint.L
         flex.L_elem = joint.L / flex.n_elem
+        flex.klOO_nd = [j * (joint.klOO / flex.n_elem) for j in range(flex.n_nd)]
         self.m = rigid.rho * rigid.A * joint.L
         self.rigid.CkJk = np.array([1/12 * self.m * (rigid.h**2 + rigid.w**2), 1/12 * self.m * (
             rigid.h**2 + joint.L**2), 1/12 * self.m * (rigid.w**2 + joint.L**2)])
@@ -114,6 +115,12 @@ class SOABody:
 
     def set_initial_beta0(self, beta0):
         self.initialcondition.beta0 = beta0
+
+    def set_initial_eta0(self, eta0):
+        self.initialcondition.eta0 = eta0
+    
+    def set_initial_eta_dot0(self, eta_dot0):
+        self.initialcondition.eta_dot0 = eta_dot0
 
     def get_D_m_inv(self, Gamma, x):
         # Calculate D_m_inv

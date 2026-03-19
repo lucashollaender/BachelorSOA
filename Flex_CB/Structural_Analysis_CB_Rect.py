@@ -182,7 +182,7 @@ class Structural_Analysis_CB_Rect:
 
         omega2, PI_n = la.eigh(K_n, M_n)
 
-        # Store eigen values
+        # Store eigenvalues
         self.omega2 = omega2[6:]
         self.omega = np.sqrt(self.omega2)
 
@@ -201,8 +201,8 @@ class Structural_Analysis_CB_Rect:
         self.gamma = np.zeros((3*self.n_nd, self.n_md))
         self.lambda_ = np.zeros((3*self.n_nd, self.n_md))
         for i in range(self.n_nd):
-            self.lambda_[i*3:i*3+3, :] = PI_e[i*3:i*3+3, :]
-            self.gamma[i*3:i*3+3, :] = PI_e[i*3+3:i*3+6, :]
+            self.lambda_[i*3:i*3+3, :] = self.PI_e[i*6:i*6+3, :]
+            self.gamma[i*3:i*3+3, :] = self.PI_e[i*6+3:i*6+6, :]
 
         return self.PI_e
 
@@ -264,7 +264,7 @@ class Structural_Analysis_CB_Rect:
         self.p_0 = 1/m * p_0_sum
         self.p_1 = 1/m * p_1_sum
         self.CkJk_0 = CkJk_0_sum
-        self.CkJk_0[0, 0] = self.CkJk[0]
+        #self.CkJk_0[0, 0] = self.CkJk[0]
         self.CkJk_1 = - CkJk_1_sum
         self.CkJk_2 = - CkJk_2_sum
         self.F_0 = F_0_sum
@@ -305,6 +305,7 @@ class Structural_Analysis_CB_Rect:
         return C_fl
 
     def __init__(self, joint: Joint, rigid: Rigid_Properties, flex: Flex_Properties):
+        self.klOO = joint.klOO
         self.klOC = joint.klOC
         self.w = rigid.w
         self.h = rigid.h
