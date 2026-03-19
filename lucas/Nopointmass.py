@@ -1393,7 +1393,7 @@ print(np.linalg.norm(PIe[5, :]))
 K = b1.flex.K_fl
 M = b1.flex.M_fl
 
-F_ext = np.array([1e2, 0, 0,0, 0 ,0]).reshape(6, 1)
+F_ext = np.array([0, 0, 0,0, 0 ,1e2]).reshape(6, 1)
 b1.set_F_ext(F_ext)
 bodies = [b1]
 
