@@ -43,4 +43,8 @@ sim.IntegrateSystem()
 
 save_dir = r"C:\Users\jepp6\OneDrive - Aarhus universitet\Dokumenter\Noter\6. Semester\Bachelor Projekt\BachelorCode\Renders"
 
+<<<<<<< HEAD
 sim.animate()
+=======
+sim.animate("")
+>>>>>>> 90deb9458dee8fe8147e92a92bf5d620e3fbadb7

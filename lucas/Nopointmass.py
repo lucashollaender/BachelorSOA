@@ -492,8 +492,8 @@ class Structural_Analysis_PM_Rect:
         self.gamma = np.zeros((3*self.n_nd, self.n_md))
         self.lambda_ = np.zeros((3*self.n_nd, self.n_md))
         for i in range(self.n_nd):
-            self.lambda_[i*3:i*3+3, :] = self.PI_e[i*3:i*3+3, :]
-            self.gamma[i*3:i*3+3, :] = self.PI_e[i*3+3:i*3+6, :]
+            self.lambda_[i*3:i*3+3, :] = self.PI_e[i*6:i*6+3, :]
+            self.gamma[i*3:i*3+3, :] = self.PI_e[i*6+3:i*6+6, :]
 
         return self.PI_e
 
@@ -558,8 +558,8 @@ class Structural_Analysis_PM_Rect:
         self.F_0 = F_0_sum
         self.F_1 = - F_1_sum
         self.G_0 = G_0_sum
+        print(pd.DataFrame(self.CkJk_0))
         self.E_0 = E_0_sum
-
     def get_M_fl(self):
         # Collect modal integrals
         self.get_Modal_Int()
@@ -1375,7 +1375,7 @@ klOC = np.array([L/2, 0, 0])
 
 # n_md_max = (n_nd - 1) * 3
 
-E, G, rho, n_nd, n_md = 2.1e11, 8e10, 7850, 4, 3
+E, G, rho, n_nd, n_md = 1e7, 3.8e6, 1000, 8, 7
 
 w, h = 0.04, 0.04
 
@@ -1393,25 +1393,27 @@ print(np.linalg.norm(PIe[5, :]))
 K = b1.flex.K_fl
 M = b1.flex.M_fl
 
-F_ext = np.array([0, 0, 0,0, 0 ,-1e4]).reshape(6, 1)
+F_ext = np.array([0, 0, 0,0, 0 ,1e2]).reshape(6, 1)
 b1.set_F_ext(F_ext)
-#b1.set_initial_beta0(-100)
 bodies = [b1]
 
 system = MultibodySystem(bodies)
 
-print("PI")
-print(pd.DataFrame(b1.flex.PI))
+print("x-axial")
+print(pd.DataFrame(b1.flex.PI[-3,:].T))
+print("x-torsion")
+print(pd.DataFrame(b1.flex.PI[-6,:].T))
+
 print("eigval")
 print(pd.DataFrame(b1.flex.eigval))
 
-tf = 3
+tf = 1
 dt = 0.01
 
 sim = Simulation(system, tf, dt)
 
 sim.camera_speed(0)
-sim.camera_ver(0)
+sim.camera_ver(45)
 sim.camera_hor(90)
 
 sim.IntegrateSystem()
