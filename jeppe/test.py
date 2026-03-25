@@ -26,7 +26,7 @@ b3 = SOABody(j3, i)
 b1.set_initial_theta0(sb.get_quat_from_degrees(10, -25, 0))
 b2.set_initial_theta0(sb.get_quat_from_degrees(-135, 0, 0))
 
-b1.set_initial_beta0(np.array([0, 0 , 0]).reshape(3, 1))
+b1.set_initial_beta0(np.array([0, 0, 0]).reshape(3, 1))
 
 bodies = [b1, b2]
 
