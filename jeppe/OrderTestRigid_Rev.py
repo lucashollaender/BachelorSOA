@@ -5,11 +5,11 @@ from SOALIB import soalib as sb
 import matplotlib.pyplot as plt
 
 # Test setup
-n_max = 12
-n_samples = 1  # <-- number of runs per n
+n_max = 20
+n_samples = 5  # <-- number of runs per n
 
 # Simulation setup
-tf = 10
+tf = 5
 dt = 0.01
 
 # Body setup
