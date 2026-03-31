@@ -383,7 +383,6 @@ def run_benchmark(N_values, L=1.0, m=1.0, g=9.82, T_end=10.0,
                 N=N, L=L, m=m, g=g, T_end=T_end, theta_init=this_theta
             )
             runtimes.append(elapsed)
-
         avg_time = np.mean(runtimes)
         solve_times.append(avg_time)
         print(f"N = {N:2d}, avg solve time = {avg_time:.4f} s")
