@@ -387,12 +387,4 @@ def run_benchmark(N_values, L=1.0, m=1.0, g=9.82, T_end=10.0,
         solve_times.append(avg_time)
         print(f"N = {N:2d}, avg solve time = {avg_time:.4f} s")
 
-    plt.figure(figsize=(7, 5))
-    plt.plot(N_values, solve_times, "o-", linewidth=2)
-    plt.xlabel("Number of bodies, N")
-    plt.ylabel("Computational time [s]")
-    plt.title("Computational time vs number of bodies")
-    plt.grid(True)
-    plt.show()
-
     return np.array(N_values), np.array(solve_times)
