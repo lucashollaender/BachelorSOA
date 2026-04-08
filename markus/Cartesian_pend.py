@@ -7,6 +7,7 @@ import time
 print("numpy:", np.__version__)
 print("scipy:", sp.__version__)
 
+
 def bench_solve(n, reps=2000):
     A = np.random.randn(n, n)
     A = A.T @ A + np.eye(n)   # make it well-conditioned SPD-ish
@@ -18,15 +19,16 @@ def bench_solve(n, reps=2000):
     dt = (time.perf_counter() - t0) / reps
     print(f"n={n}, avg solve = {dt:.6e} s")
 
+
 bench_solve(95)
 bench_solve(99)
 bench_solve(100)
 
 if __name__ == "__main__":
-    MODE = "benchmark"
+    MODE = "single"
 
     if MODE == "single":
-        N = 30
+        N = 10
         theta_init = 0 * np.ones(N)
 
         result = run_single_case(
@@ -34,7 +36,7 @@ if __name__ == "__main__":
             L=1,
             m=1,
             g=9.82,
-            T_end=10.0,
+            T_end=20.0,
             theta_init=theta_init,
             animate=True
         )
@@ -48,8 +50,7 @@ if __name__ == "__main__":
 
     elif MODE == "benchmark":
         run_benchmark(
-            N_values=[14, 15, 16, 17, 18, 19, 20, 21,
-                      22, 23, 24, 25, 26, 27, 28, 29, 30],
+            N_values=[1],
             L=1.0,
             m=1.0,
             g=9.82,
@@ -57,6 +58,5 @@ if __name__ == "__main__":
             n_runs=1,
             theta_init_fn=lambda N: np.zeros(N)
         )
-
     else:
         raise ValueError("MODE must be 'single' or 'benchmark'")
