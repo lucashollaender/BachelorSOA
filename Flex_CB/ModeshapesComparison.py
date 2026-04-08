@@ -6,7 +6,8 @@ from Structural_Analysis_CB_Rect import Structural_Analysis_CB_Rect
 import pandas as pd
 
 # Settings
-L = 1.0
+L = 1
+klOO1 = np.array([0, 0, L]).reshape(3, 1)
 
 E = 1e7
 G = 3.8e6
@@ -21,7 +22,7 @@ h = 0.04   # non-square section helps separate bending pairs
 
 
 # Properties
-j1 = Joint(L, "fixed")
+j1 = Joint(klOO1, "fixed")
 r1 = Rigid_Properties(rho, w, h)
 f1 = Flex_Properties(E, G, c, n_nd, n_md)
 

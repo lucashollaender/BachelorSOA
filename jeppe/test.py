@@ -2,14 +2,14 @@ from SOALIB.RigidForwardSOA import Joint, Inertia, SOABody, MultibodySystem, Sim
 import numpy as np
 from SOALIB import soalib as sb
 
-klOO = np.array([0, 0, 5])
-H_type1 = "spherical"
-H_type2 = "spherical"
+klOO = np.array([0, 0, 1])
+H_type1 = "revx"
+H_type2 = "revx"
 H_type3 = "spherical"
 
 m = 1
-CkJk = np.array([1, 1, 0.1])
-klOC = np.array([0, 0, 2.5])
+CkJk = np.array([1/12, 1/12, 1/12])
+klOC = np.array([0, 0, 0.5])
 
 j1 = Joint(klOO, H_type1)
 i = Inertia(m, CkJk, klOC)
@@ -23,10 +23,10 @@ j3 = Joint(klOO, H_type3)
 i = Inertia(m, CkJk, klOC)
 b3 = SOABody(j3, i)
 
-b1.set_initial_theta0(sb.get_quat_from_degrees(10, -25, 0))
-b2.set_initial_theta0(sb.get_quat_from_degrees(-135, 0, 0))
+b1.set_initial_theta0(0)
+b2.set_initial_theta0(90/180*np.pi)
 
-b1.set_initial_beta0(np.array([0, 0 , 0]).reshape(3, 1))
+#b1.set_initial_beta0(np.array([0, 0 , 0]).reshape(3, 1))
 
 bodies = [b1, b2]
 
@@ -37,10 +37,14 @@ dt = 0.01
 
 sim = Simulation(system, tf, dt)
 
-sim.camera_speed(0.1)
+sim.camera_speed(0)
 
 sim.IntegrateSystem()
 
 save_dir = r"C:\Users\jepp6\OneDrive - Aarhus universitet\Dokumenter\Noter\6. Semester\Bachelor Projekt\BachelorCode\Renders"
 
+<<<<<<< HEAD
+sim.animate()
+=======
 sim.animate("")
+>>>>>>> 90deb9458dee8fe8147e92a92bf5d620e3fbadb7

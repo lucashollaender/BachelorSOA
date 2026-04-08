@@ -6,15 +6,15 @@ import matplotlib.pyplot as plt
 
 # Test setup
 n_max = 20
-n_samples = 1  # <-- number of runs per n
+n_samples = 5  # <-- number of runs per n
 
 # Simulation setup
-tf = 1
-dt = 0.1
+tf = 5
+dt = 0.01
 
 # Body setup
 klOO = np.array([0, 0, 1])
-H_type = "spherical"
+H_type = "revx"
 m = 1
 CkJk = np.array([1/12, 1/12, 1/12])
 klOC = np.array([0, 0, 0.5])
@@ -32,13 +32,17 @@ for k in range(n_max):
             i = Inertia(m, CkJk, klOC)
             b = SOABody(j, i)
 
-            if i_body == 1:
-                b.set_initial_theta0(sb.get_quat_from_degrees(90, 0, 0))
+            if i_body == 0:
+                b.set_initial_theta0(90/180*np.pi)
 
             bodies.append(b)
 
+        bodies.reverse()
         system = MultibodySystem(bodies)
         sim = Simulation(system, tf, dt)
+
+        if k == 2:
+            sim_save = sim
 
         timer = TicToc(False)
         timer.tic()
@@ -64,3 +68,6 @@ plt.xlim(0, n_max)
 plt.ylim(0, max(dt_n)*1.1)
 
 plt.show()
+
+sim_save.IntegrateSystem()
+sim_save.animate()
