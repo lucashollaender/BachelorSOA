@@ -59,6 +59,7 @@ class Inertia:
             [np.zeros((3, 3)), m * np.eye(3)]
         ])
         self.Mk = sb.phi(klOC) @ MC @ sb.phi(klOC).T
+        self.MC = MC
 
 
 class SOABody:
@@ -376,9 +377,7 @@ class Simulation:
             t_span=(0, self.tf),
             y0=self.system.S0,
             t_eval=t_eval,
-            method="RK45",
-            rtol=1e-8,
-            atol=1e-8
+            method="Radau"
         )
 
         print("Integration successful!")
