@@ -408,6 +408,7 @@ class Structural_Analysis_CB_Rect:
         m = np.full(self.n_nd, m_e)
         m[0] = m_e / 2
         m[-1] = m_e / 2
+        self.m_nd = m
 
         M_blocks = []
 
