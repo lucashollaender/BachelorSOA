@@ -59,6 +59,7 @@ class Inertia:
             [np.zeros((3, 3)), m * np.eye(3)]
         ])
         self.Mk = sb.phi(klOC) @ MC @ sb.phi(klOC).T
+        self.MC = MC
 
 
 class SOABody:

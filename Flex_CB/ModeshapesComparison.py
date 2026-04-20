@@ -14,15 +14,15 @@ G = 3.8e6
 c = 0.02
 rho = 1000
 
-n_nd = 8
-n_md = 7
+n_nd = 20
+n_md = 6
 
 w = 0.04
 h = 0.04   # non-square section helps separate bending pairs
 
 
 # Properties
-j1 = Joint(klOO1, "fixed")
+j1 = Joint(L, "fixed")
 r1 = Rigid_Properties(rho, w, h)
 f1 = Flex_Properties(E, G, c, n_nd, n_md)
 
@@ -83,6 +83,15 @@ betaL_bending = np.array([
     23.56194490
 ])
 
+# Section properties used for analytical frequencies
+A = w * h
+I_y = w * h**3 / 12.0
+I_z = h * w**3 / 12.0
+J_p = I_y + I_z
+a = w / 2.0
+b = h / 2.0
+K_t = a * b**3 * (16/3 - 3.36 * a / b * (1 - a**4 / (12 * b**4)))
+
 
 def normalize_mode(y):
     y = np.asarray(y, dtype=float).copy()
@@ -116,6 +125,31 @@ def phi_torsion_cantilever(x, L, mode_index):
     n = mode_index + 1
     y = np.sin((2 * n - 1) * np.pi * x / (2 * L))
     return normalize_mode(y)
+
+
+def analytical_frequency_hz(mode_type, mode_index):
+    n = mode_index + 1
+
+    if mode_type == "bending-y":
+        betaL = betaL_bending[mode_index]
+        omega = (betaL**2) * np.sqrt(E * I_z / (rho * A * L**4))
+
+    elif mode_type == "bending-z":
+        betaL = betaL_bending[mode_index]
+        omega = (betaL**2) * np.sqrt(E * I_y / (rho * A * L**4))
+
+    elif mode_type == "axial":
+        k_n = (2 * n - 1) * np.pi / (2 * L)
+        omega = k_n * np.sqrt(E / rho)
+
+    elif mode_type == "torsion":
+        k_n = (2 * n - 1) * np.pi / (2 * L)
+        omega = k_n * np.sqrt(G * K_t / (rho * J_p))
+
+    else:
+        raise ValueError(f"Unknown mode type: {mode_type}")
+
+    return omega / (2 * np.pi)
 
 
 def mac(a, b):
@@ -223,21 +257,35 @@ def best_reference(mode_type, num_shape, x_nodes, xi, n_try):
 # -------------------------------------------------
 mode_types = []
 num_shapes = []
+analytical_freqs = []
 
 print("\nMode classification summary")
 print(
-    "mode | type       | freq [Hz] | ||u_y||   | ||u_z||   | ||u_x||   | ||theta_x||")
-print("-" * 82)
+    "mode | type       | num freq [Hz] | ana freq [Hz] | ||u_y||   | ||u_z||   | ||u_x||   | ||theta_x||")
+print("-" * 100)
+
+family_counters = {
+    "bending-y": 0,
+    "bending-z": 0,
+    "axial": 0,
+    "torsion": 0,
+}
 
 for r in range(n_md):
     mode_type, num_shape, info = classify_mode(PI_e, r, n_nd)
     mode_types.append(mode_type)
     num_shapes.append(num_shape)
 
+    family_index = family_counters[mode_type]
+    f_analytical = analytical_frequency_hz(mode_type, family_index)
+    analytical_freqs.append(f_analytical)
+    family_counters[mode_type] += 1
+
     print(
         f"{r+1:>4d} | "
         f"{mode_type:<10s} | "
-        f"{omega_e[r]/(2*np.pi):>9.4f} | "
+        f"{omega_e[r]/(2*np.pi):>13.4f} | "
+        f"{f_analytical:>13.4f} | "
         f"{info['amp_by']:>9.3e} | "
         f"{info['amp_bz']:>9.3e} | "
         f"{info['amp_axial']:>9.3e} | "
