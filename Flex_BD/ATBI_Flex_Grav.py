@@ -150,7 +150,7 @@ class ATBI_Flex:
                 V_f[k] = eta_dot
                 V_r[k] = H.T @ beta
 
-                a_fl[k] = self.coriolis_MC(V_r[k], np.zeros((6, 1)), beta, H, np.zeros((3, 1)), R3)
+                #a_fl[k] = self.coriolis_MC(V_r[k], np.zeros((6, 1)), beta, H, np.zeros((3, 1)), R3)
             else:
                 R6 = sb.q2R(q.flatten(), 6)
                 R_tot = sb.get_R_tot(R6, n_md)
@@ -158,10 +158,10 @@ class ATBI_Flex:
                 V_f[k] = eta_dot
                 V_r[k] = A_fl[k+1].T @ R_tot.T @ V[k+1] + H.T @ beta
 
-                a_fl[k] = self.coriolis_MC(V_r[k], V_r[k+1], beta, H, R3.T @ X[k+1][4:7], R3)
+                #a_fl[k] = self.coriolis_MC(V_r[k], V_r[k+1], beta, H, R3.T @ X[k+1][4:7], R3)
 
             # Coriolis
-            #a_fl[k] = np.vstack([np.zeros((n_md, 1)), self.coriolis(V_r[k], beta, H)])
+            a_fl[k] = np.vstack([np.zeros((n_md, 1)), self.coriolis(V_r[k], beta, H)])
 
             # Gyroscopic
             #b_fl[k] = np.vstack([np.zeros((n_md, 1)), self.gyroscopic(V_r[k], Mk)])
