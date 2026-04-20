@@ -16,6 +16,14 @@ class ATBI_Flex:
         deltaV = H.T @ beta
         return sb.skew6(V) @ deltaV - sb.bar6(deltaV) @ deltaV
 
+    def coriolis_MC(self, V_k, V_p, beta, H, klOO, R3):
+        deltaV = H.T @ beta
+
+        a01 = sb.skew(V_k[0:3]) @ deltaV[0:3]
+        a02 = sb.skew(V_p[0:3]) @ sb.skew(V_p[0:3]) @ klOO
+
+        return np.vstack([a01, R3.T @ a02])
+    
     def gyroscopic(self, V, M):
         return sb.bar6(V) @ M @ V
 
@@ -141,6 +149,8 @@ class ATBI_Flex:
             if k == n - 1:
                 V_f[k] = eta_dot
                 V_r[k] = H.T @ beta
+
+                a_fl[k] = self.coriolis_MC(V_r[k], np.zeros((6, 1)), beta, H, np.zeros((3, 1)), R3)
             else:
                 R6 = sb.q2R(q.flatten(), 6)
                 R_tot = sb.get_R_tot(R6, n_md)
@@ -148,9 +158,12 @@ class ATBI_Flex:
                 V_f[k] = eta_dot
                 V_r[k] = A_fl[k+1].T @ R_tot.T @ V[k+1] + H.T @ beta
 
-            a_fl[k] = np.vstack(
-                [np.zeros((n_md, 1)), self.coriolis(V_r[k], beta, H)])
+                a_fl[k] = self.coriolis_MC(V_r[k], V_r[k+1], beta, H, R3.T @ X[k+1][4:7], R3)
 
+            # Coriolis
+            #a_fl[k] = np.vstack([np.zeros((n_md, 1)), self.coriolis(V_r[k], beta, H)])
+
+            # Gyroscopic
             #b_fl[k] = np.vstack([np.zeros((n_md, 1)), self.gyroscopic(V_r[k], Mk)])
             b_fl[k] = self.gyroscopic_PM(body, eta, eta_dot, V_r[k], body.m)
 
@@ -302,9 +315,9 @@ class ATBI_Flex:
             A_fl[k] = sb.get_A(PI, R3.T @ X[k][4:7])
 
             if k == n - 1:
-                # Scatter loop (Base of chain)
-                theta_ddot[k] = nu_pr[k]
-                alpha_pr = H_B.T @ theta_ddot[k] + a_fl[k][-6:]
+                alpha_base = R6.T @ g
+                theta_ddot[k] = nu_pr[k] - G_pr[k].T @ alpha_base
+                alpha_pr = alpha_base + H_B.T @ theta_ddot[k] + a_fl[k][-6:]
                 eta_ddot[k] = nu_m[k] - g_fl[k].T @ alpha_pr
                 alpha_fl[k] = np.vstack([eta_ddot[k], alpha_pr])
 
