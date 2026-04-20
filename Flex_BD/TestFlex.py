@@ -8,16 +8,11 @@ import pandas as pd
 
 klOO1 = np.array([1, 0, 0]).reshape(3, 1)
 klOO2 = np.array([1, 0, 0]).reshape(3, 1)
-<<<<<<< HEAD
-H_type1 = "spherical"
-H_type2 = "fixed"
-=======
 H_type1 = "revy"
 H_type2 = "revy"
->>>>>>> efde51e3fd21c6adfdae9d017c451779b8187fa2
 
 # n_md_max = (n_nd - 1) * 3
-E, G, c, rho, n_nd, n_md = 230e12, 80e12, 0.0, 7850, 2, 1
+E, G, c, rho, n_nd, n_md = 230e9, 80e9, 0.0, 7850, 2, 1
 
 w, h = 0.04, 0.04
 
@@ -44,18 +39,6 @@ print(np.linalg.norm(PIe[5, :]))
 K = b1.flex.K_fl
 M = b1.flex.M_fl
 
-<<<<<<< HEAD
-F_ext1 = np.array([0, 0, 0, 0, 1e5, 0]).reshape(6, 1)
-# b1.set_F_ext(F_ext1)
-F_ext2 = np.array([1e4, 0, 0, 0, 0, 0]).reshape(6, 1)
-b2.set_F_ext(F_ext2)
-# b1.set_initial_beta0(2)
-
-
-# eta0 = np.vstack([np.array([5]), np.zeros((n_md-1, 1))]).reshape(6, 1)
-# eta0 = np.array([0, 0, 0, 0, 10, 0]).reshape(6, 1)
-# b1.set_initial_eta0(eta0)
-=======
 #F_ext1 = np.array([0, 0, 0, 0, 1e5, 0]).reshape(6, 1)
 #b1.set_F_ext(F_ext1)
 #F_ext2 = np.array([1e4, 0, 0, 0, 0, 0]).reshape(6, 1)
@@ -65,7 +48,6 @@ b2.set_F_ext(F_ext2)
 #eta0 = np.vstack([np.array([5]), np.zeros((n_md-1, 1))]).reshape(6, 1)
 #eta0 = np.array([0, 0, 0, 0, 10, 0]).reshape(6, 1)
 #b1.set_initial_eta0(eta0)
->>>>>>> efde51e3fd21c6adfdae9d017c451779b8187fa2
 
 bodies = [b1, b2, b2]
 

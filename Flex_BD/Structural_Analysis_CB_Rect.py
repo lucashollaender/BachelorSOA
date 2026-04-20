@@ -99,50 +99,34 @@ class Structural_Analysis_CB_Rect:
         return K_st
 
     def get_M_st(self):
-        # Nodal masses
+        L_e = self.L_elem
         m_e = self.m_e
 
+        # nodal masses
         m = np.full(self.n_nd, m_e)
-        m[-1], m[0] = m_e / 2, m_e / 2
-
-        # Store nodal masses and lenghts
+        m[0] = m_e / 2
+        m[-1] = m_e / 2
         self.m_nd = m
-        
-        J_x = 1/12 * self.h * self.w * (self.h**2 + self.w**2)
-        I_y = 1/12 * self.h**3 * self.w
-        I_z = 1/12 * self.h * self.w**3
-        L_elem = self.L_elem
-        A = self.A
-        rho = self.rho
 
-        # Stiffness matrix
-        diag = [None] * 6
+        M_blocks = []
 
-        diag[0] = np.array([1/3, 13/35+6*I_z/(5*A*L_elem**2), 13/35+6*I_y/(5*A*L_elem**2), J_x/(3*A), L_elem**2/105+2*I_y/(15*A), L_elem**2/105+2*I_z/(15*A), 1/3, 13/35+6*I_z/(5*A*L_elem**2), 13/35+6*I_y/(5*A*L_elem**2), J_x/(3*A), L_elem**2/105+2*I_y/(15*A), L_elem**2/105+2*I_z/(15*A)])
-        diag[1] = np.array([0, 0, -11*L_elem/210-I_y/(10*A*L_elem), 0, 0, 13*L_elem/420-I_z/(10*A*L_elem), 0, 0, 11*L_elem/210+I_y/(10*A*L_elem), 0])
-        diag[2] = np.array([0, 11*L_elem/210+I_z/(10*A*L_elem), 0, 0, -13*L_elem/420+I_y/(10*A*L_elem), 0, 0, -11*L_elem/210-I_z/(10*A*L_elem)])
-        diag[3] = np.array([1/6, 9/70-6*I_z/(5*A*L_elem**2), 9/70-6*I_y/(5*A*L_elem**2), J_x/(6*A), -L_elem**2/140-I_y/(30*A), -L_elem**2/140-I_z/(30*A)])
-        diag[4] = np.array([0, 0, 13*L_elem/420-I_y/(10*A*L_elem), 0])
-        diag[5] = np.array([0, -13*L_elem/420+I_z/(10*A*L_elem)])
+        for i in range(self.n_nd):
+        # J about the node origin
+            J = (m[i] / 12.0) * np.diag([
+            self.w**2 + self.h**2,   # about x
+            L_e**2 + self.h**2,      # about y
+            L_e**2 + self.w**2       # about z
+            ])
 
-        M = np.diag(diag[0], k=0)
+        # if you want the full spatial inertia block about the node:
+            Mj = np.block([
+            [J, np.zeros((3, 3))],
+            [np.zeros((3, 3)), m[i] * np.eye(3)]
+            ])
 
-        for i in range(1, 6):
-            M += np.diag(diag[i], k=-2*i) + np.diag(diag[i], k=2*i)
-        
-        M = rho * A * L_elem * M
+            M_blocks.append(Mj)
 
-        # Change so rotations first is along
-        perm = [3, 4, 5, 0, 1, 2, 9, 10, 11, 6, 7, 8]
-        M_perm = M[np.ix_(perm, perm)]
-
-        # Global stiffness matrix setup
-        M_st = np.zeros((6*self.n_nd, 6*self.n_nd))
-
-        for i in range(self.n_nd - 1):
-            M_i = np.zeros((6*self.n_nd, 6*self.n_nd))
-            M_i[i*6:i*6+12, i*6:i*6+12] = M_perm
-            M_st += M_i
+            M_st = la.block_diag(*M_blocks)
 
         return M_st
 
@@ -264,7 +248,7 @@ class Structural_Analysis_CB_Rect:
         self.p_0 = 1/m * p_0_sum
         self.p_1 = 1/m * p_1_sum
         self.CkJk_0 = CkJk_0_sum
-        self.CkJk_0[0, 0] = self.CkJk[0]
+        #self.CkJk_0[0, 0] = self.CkJk[0]
         self.CkJk_1 = - CkJk_1_sum
         self.CkJk_2 = - CkJk_2_sum
         self.F_0 = F_0_sum

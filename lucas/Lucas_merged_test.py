@@ -350,7 +350,7 @@ class Structural_Analysis_CB_Rect:
             K_st = K_st + k_i
 
         return K_st
-
+    """
     def get_M_st(self):
         # Nodal masses
         m_e = self.m_e
@@ -396,6 +396,39 @@ class Structural_Analysis_CB_Rect:
             M_i = np.zeros((6*self.n_nd, 6*self.n_nd))
             M_i[i*6:i*6+12, i*6:i*6+12] = M_perm
             M_st += M_i
+
+        return M_st
+    """
+
+    def get_M_st(self):
+        L_e = self.L_elem
+        m_e = self.m_e
+
+        # nodal masses
+        m = np.full(self.n_nd, m_e)
+        m[0] = m_e / 2
+        m[-1] = m_e / 2
+        self.m_nd = m
+
+        M_blocks = []
+
+        for i in range(self.n_nd):
+        # J about the node origin
+            J = (m[i] / 12.0) * np.diag([
+            self.w**2 + self.h**2,   # about x
+            L_e**2 + self.h**2,      # about y
+            L_e**2 + self.w**2       # about z
+            ])
+
+        # if you want the full spatial inertia block about the node:
+            Mj = np.block([
+            [J, np.zeros((3, 3))],
+            [np.zeros((3, 3)), m[i] * np.eye(3)]
+            ])
+
+            M_blocks.append(Mj)
+
+            M_st = la.block_diag(*M_blocks)
 
         return M_st
 
@@ -1014,16 +1047,19 @@ class ATBI_Flex:
             # External force
             # F_ext_term = np.zeros((b_fl[k].shape[0], 1))
             #F_ext_term = np.exp(- 5 * t) * np.vstack([PI.T @ F_ext, sb.phi(klOO) @ F_ext])
+            """
             tau = 0.05
 
             if t < tau:
                 scale = 0.5 * (1 - np.cos(np.pi * t / tau))
             else:
                 scale = 1.0
-
+            """
+            scale=1
             F_ext_term = scale * np.vstack([PI.T @ F_ext, sb.phi(klOO) @ F_ext])
             #F_ext_term = np.vstack([PI.T @ F_ext, sb.phi(klOO) @ F_ext])
-
+            g = np.array([0, 0, 0, 0, 0, 9.81]).reshape(6, 1)
+            
             """
             if t <= 0.25:
                 F_ext_term = np.vstack([PI.T @ F_ext, sb.phi(klOO) @ F_ext])
@@ -1045,7 +1081,12 @@ class ATBI_Flex:
                 P_pr_plus[k] = tau_pr_bar @ P_pr[k]
 
                 # 13.7
-                z = b_fl[k] + K_fl @ np.vstack([eta, np.zeros((6, 1))]) - F_ext_term + C_fl @ np.vstack([eta_dot, np.zeros((6, 1))])
+                #gravity
+                q = X[k][0:4]
+                # Rotation
+                R6 = sb.q2R(q.flatten(), 6)
+                Gravity = M_fl @ np.vstack([np.zeros((n_md, 1)), R6.T@g])
+                z = b_fl[k] + K_fl @ np.vstack([eta, np.zeros((6, 1))]) - F_ext_term + C_fl @ np.vstack([eta_dot, np.zeros((6, 1))])#+Gravity
                 eps_m = - z[0:n_md]  # tau_m (assumed to be zero): dim(n_md, 1)
                 nu_m[k] = D_m_inv @ eps_m
 
@@ -1078,7 +1119,7 @@ class ATBI_Flex:
                 P_pr_plus[k] = tau_pr_bar @ P_pr[k]
 
                 # 13.7
-                z = A_fl @ R6 @ z_pr_plus[k-1] + b_fl[k] + K_fl @ np.vstack([eta, np.zeros((6, 1))]) - F_ext_term + C_fl @ np.vstack([eta_dot, np.zeros((6, 1))])
+                z = A_fl @ R6 @ z_pr_plus[k-1] + b_fl[k] + K_fl @ np.vstack([eta, np.zeros((6, 1))]) - F_ext_term + C_fl @ np.vstack([eta_dot, np.zeros((6, 1))]) #+Gravity
                 eps_m = - z[0:n_md]  # tau_m (assumed to be zero): dim(n_md, 1)
                 nu_m[k] = D_m_inv @ eps_m
 
@@ -1549,7 +1590,7 @@ class Simulation:
 # FILE: TestFlex.py (bottom test block)
 #########################################################################################
 if __name__ == "__main__":
-
+    L=1
     klOO1 = np.array([0, 0, 1]).reshape(3, 1)
     klOO2 = np.array([1, 0, 0]).reshape(3, 1)
     H_type1 = "fixed"
@@ -1557,24 +1598,23 @@ if __name__ == "__main__":
 
     # n_md_max = (n_nd - 1) * 3
 
-    E, G,c, rho, n_nd, n_md = 1e8, 3.8e6,0.01, 1000, 10, 12 
+    E, G,c, rho, n_nd, n_md = 1.93e9, 6.902e8,0.2, 1300, 20, 12
 
     w, h = 0.04, 0.04
 
     j1 = Joint(klOO1, H_type1)
     r1 = Rigid_Properties(rho, w, h)
     f1 = Flex_Properties(
-    E, G, c, n_nd, 20,
+    E, G, c, n_nd, n_md,
     mode_quota={
-        "bending_xy": 0,
-        "bending_xz": 0,
-        "axial_x": 1
+        "bending_xy": 3,
+        "bending_xz": 3,
+        "axial_x": 0
     })
 
     j2 = Joint(klOO2, H_type2)
     r2 = Rigid_Properties(rho, w, h)
     f2 = Flex_Properties(E, G, c, n_nd, n_md)
-
     b1 = SOABody(j1, r1, f1)
     b2 = SOABody(j2, r2, f2)
 
@@ -1584,7 +1624,7 @@ if __name__ == "__main__":
     K = b1.flex.K_fl
     M = b1.flex.M_fl
 
-    F_ext1 = np.array([0, 0, 0,  1e4, 0, 0]).reshape(6, 1)
+    F_ext1 = np.array([0, 0, 0,  0, 0,100]).reshape(6, 1)
     b1.set_F_ext(F_ext1)
     #F_ext2 = np.array([0, 0, 0, 1e3, 0, 0]).reshape(6, 1)
     #b2.set_F_ext(F_ext2)
@@ -1602,8 +1642,8 @@ if __name__ == "__main__":
 
     system = MultibodySystem(bodies)
 
-    tf = 5
-    dt = 0.01
+    tf = 3
+    dt = 0.005
 
     sim = Simulation(system, tf, dt)
 
@@ -1619,7 +1659,50 @@ if __name__ == "__main__":
     # sim.animate_nodes(filename="FlexOORotMissing", save_dir=save_dir)
     sim.animate_nodes()
 
+
+    #Compare with static deflection from Solidworks
     """
+    # Read file
+    zDeflection_SW = pd.read_csv("Static12.csv", sep=";")
+    
+    # Clean column names first
+    zDeflection_SW.columns = zDeflection_SW.columns.str.strip()
+
+    # Convert text columns to numbers
+    for col in ["X (mm)", "Z (mm)", "UY (mm)"]:
+        zDeflection_SW[col] = pd.to_numeric(
+        zDeflection_SW[col].astype(str).str.replace(",", ".", regex=False),
+        errors="coerce"
+        )
+
+    # Pick only rows where Z = 20 mm
+    tol = 1e-6
+    line = zDeflection_SW[np.isclose(zDeflection_SW["Z (mm)"], 20, atol=tol)]
+
+    # Extract values
+    x_sw = line["X (mm)"]
+    uy_sw = line["UY (mm)"]
+
+    state = sim.get_state()
+    eta_last = state[-1].Eta[0]
+    PI = sim.system.bodies[0].flex.PI
+    u_nd=PI@eta_last
+    uy_nd = u_nd.flatten()[4::6]
+
+    print(pd.DataFrame(uy_nd))
+
+    x_soa = np.linspace(0, L, n_nd) * 1000 
+    uy_soa = -uy_nd * 1000
+    plt.plot(x_sw, uy_sw, '-', label='SolidWorks')
+    plt.plot(x_soa, uy_soa, '--', label=f'SOA (n_md={b1.flex.n_md})')
+    plt.xlabel("x (mm)")
+    plt.ylabel("z-deflection (mm)")
+    plt.title("Static deflection of cantilever beam")
+    plt.grid(True)
+    plt.legend()
+    plt.show()
+
+    
     print("eigval")
     print(pd.DataFrame(b1.flex.eigval))
     print("K_fl")
@@ -1628,7 +1711,8 @@ if __name__ == "__main__":
     print(pd.DataFrame(b1.flex.M_fl[-6:, -6:]))
     #print("M_fl")
     #print(pd.DataFrame(b1.flex.M_fl))
-    """
+    
     # Problems:
     # Rotation due to deformation at tip node
     # If revz and z load, then force seem to be applied rotated. Works fine for "fixed" joint
+    """

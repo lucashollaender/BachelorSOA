@@ -5,13 +5,13 @@ import matplotlib.pyplot as plt
 from scipy.integrate import cumulative_trapezoid
 
 # Setup
-klOO = np.array([0, 0, 1])
-H_type1 = "revx"
-H_type2 = "revx"
+klOO = np.array([1, 0, 0])
+H_type1 = "spherical"
+H_type2 = "spherical"
 
 m = 1
 CkJk = np.array([1/12, 1/12, 1/12])
-klOC = np.array([0, 0, 0.5])
+klOC = np.array([0.5, 0, 0])
 
 j1 = Joint(klOO, H_type1)
 i = Inertia(m, CkJk, klOC)
@@ -21,12 +21,15 @@ j2 = Joint(klOO, H_type2)
 i = Inertia(m, CkJk, klOC)
 b2 = SOABody(j2, i)
 
-b1.set_initial_theta0(0)
-b2.set_initial_theta0(np.pi/2)
+b1.set_initial_theta0(sb.get_quat_from_degrees(0, 0, 90))
 
-F_ext = [np.array([0, 0, 0, 0, 5, 0]).reshape(6, 1)]
-klOB = [np.array([0, 0, 0.5]).reshape(3, 1)]
-b1.set_F_ext(F_ext, klOB)
+F_ext1 = [np.array([0, 1, -3, 0, -2, 1.5]).reshape(6, 1)]
+klOB1 = [np.array([0.5, 0, 0]).reshape(3, 1)]
+b1.set_F_ext(F_ext1, klOB1)
+
+F_ext2 = [np.array([0, -1, 0.5, 0, -1, 2]).reshape(6, 1)]
+klOB2 = [np.array([0.5, 0, 0]).reshape(3, 1)]
+b2.set_F_ext(F_ext2, klOB2)
 
 bodies = [b1, b2]
 system = MultibodySystem(bodies)
@@ -111,7 +114,7 @@ plt.plot(t_vector, E_list, label="Total Energy (Kinetic + Potential)", color='bl
 # Plot theoretical energy (should perfectly overlap the blue line)
 plt.plot(t_vector, Theoretical_Energy, label="Theoretical Energy (Initial + Work)", color='orange', linestyle='--', linewidth=2)
 
-plt.title("Energy Analysis of 2-Body-Pendulum (5N load)", fontsize=14)
+plt.title("Energy Analysis of 2-Body-Pendulum (External Load)", fontsize=14)
 plt.xlabel("Time (s)", fontsize=14)
 plt.ylabel("Energy or Work (J)", fontsize=14)
 plt.grid(True)
