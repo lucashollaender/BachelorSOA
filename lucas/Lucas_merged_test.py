@@ -399,7 +399,6 @@ class Structural_Analysis_CB_Rect:
 
         return M_st
     """
-
     def get_M_st(self):
         L_e = self.L_elem
         m_e = self.m_e
@@ -413,23 +412,35 @@ class Structural_Analysis_CB_Rect:
         M_blocks = []
 
         for i in range(self.n_nd):
-        # J about the node origin
-            J = (m[i] / 12.0) * np.diag([
-            self.w**2 + self.h**2,   # about x
-            L_e**2 + self.h**2,      # about y
-            L_e**2 + self.w**2       # about z
+            # COM offset from node to nodal lump centroid
+            p = np.zeros(3)
+            if i == 0:
+                p = np.array([ L_e / 4, 0.0, 0.0])   # left end node
+            elif i == self.n_nd - 1:
+                p = np.array([-L_e / 4, 0.0, 0.0])   # right end node
+
+            # centroidal inertia of assigned nodal lump
+            # interior nodes get full element length, end nodes get half length
+            L_slice = L_e if (0 < i < self.n_nd - 1) else L_e / 2
+
+            Jc = (m[i] / 12.0) * np.diag([
+            self.w**2 + self.h**2,    # about x
+            L_slice**2 + self.h**2,   # about y
+            L_slice**2 + self.w**2    # about z
             ])
 
-        # if you want the full spatial inertia block about the node:
+            # shift centroidal inertia to node origin: J = Jc - m skew(p)@skew(p)
+            J = Jc - m[i] * skew(p)@skew(p)
+
+            # full 6x6 spatial inertia block
             Mj = np.block([
-            [J, np.zeros((3, 3))],
-            [np.zeros((3, 3)), m[i] * np.eye(3)]
+            [J,              m[i] * skew(p)],
+            [-m[i] * skew(p), m[i] * np.eye(3)]
             ])
 
             M_blocks.append(Mj)
 
-            M_st = la.block_diag(*M_blocks)
-
+        M_st = la.block_diag(*M_blocks)
         return M_st
 
     def get_PI(self):
@@ -1624,7 +1635,7 @@ if __name__ == "__main__":
     K = b1.flex.K_fl
     M = b1.flex.M_fl
 
-    F_ext1 = np.array([0, 0, 0,  0, 0,100]).reshape(6, 1)
+    F_ext1 = np.array([0, 0, 0,  0, 100,0]).reshape(6, 1)
     b1.set_F_ext(F_ext1)
     #F_ext2 = np.array([0, 0, 0, 1e3, 0, 0]).reshape(6, 1)
     #b2.set_F_ext(F_ext2)
@@ -1661,7 +1672,7 @@ if __name__ == "__main__":
 
 
     #Compare with static deflection from Solidworks
-    """
+    
     # Read file
     zDeflection_SW = pd.read_csv("Static12.csv", sep=";")
     
@@ -1702,17 +1713,18 @@ if __name__ == "__main__":
     plt.legend()
     plt.show()
 
-    
+    """
     print("eigval")
     print(pd.DataFrame(b1.flex.eigval))
     print("K_fl")
     print(pd.DataFrame(b1.flex.K_fl))
     print("M_fl_red")
     print(pd.DataFrame(b1.flex.M_fl[-6:, -6:]))
+    """
     #print("M_fl")
     #print(pd.DataFrame(b1.flex.M_fl))
     
     # Problems:
     # Rotation due to deformation at tip node
     # If revz and z load, then force seem to be applied rotated. Works fine for "fixed" joint
-    """
+    
