@@ -23,7 +23,7 @@ class ATBI_Flex:
         a02 = sb.skew(V_p[0:3]) @ sb.skew(V_p[0:3]) @ klOO
 
         return np.vstack([a01, R3.T @ a02])
-    
+
     def gyroscopic(self, V, M):
         return sb.bar6(V) @ M @ V
 
@@ -96,7 +96,7 @@ class ATBI_Flex:
             ang = theta.item()
             q = np.array([[0], [0], [np.sin(ang/2)], [np.cos(ang/2)]])
             q = q / np.linalg.norm(q)
-            #print(ang)
+            # print(ang)
             return np.vstack((q, klOO)), q
 
         elif joint_type == "spherical":
@@ -150,7 +150,7 @@ class ATBI_Flex:
                 V_f[k] = eta_dot
                 V_r[k] = H.T @ beta
 
-                #a_fl[k] = self.coriolis_MC(V_r[k], np.zeros((6, 1)), beta, H, np.zeros((3, 1)), R3)
+                # a_fl[k] = self.coriolis_MC(V_r[k], np.zeros((6, 1)), beta, H, np.zeros((3, 1)), R3)
             else:
                 R6 = sb.q2R(q.flatten(), 6)
                 R_tot = sb.get_R_tot(R6, n_md)
@@ -158,13 +158,14 @@ class ATBI_Flex:
                 V_f[k] = eta_dot
                 V_r[k] = A_fl[k+1].T @ R_tot.T @ V[k+1] + H.T @ beta
 
-                #a_fl[k] = self.coriolis_MC(V_r[k], V_r[k+1], beta, H, R3.T @ X[k+1][4:7], R3)
+                # a_fl[k] = self.coriolis_MC(V_r[k], V_r[k+1], beta, H, R3.T @ X[k+1][4:7], R3)
 
             # Coriolis
-            a_fl[k] = np.vstack([np.zeros((n_md, 1)), self.coriolis(V_r[k], beta, H)])
+            a_fl[k] = np.vstack(
+                [np.zeros((n_md, 1)), self.coriolis(V_r[k], beta, H)])
 
             # Gyroscopic
-            #b_fl[k] = np.vstack([np.zeros((n_md, 1)), self.gyroscopic(V_r[k], Mk)])
+            # b_fl[k] = np.vstack([np.zeros((n_md, 1)), self.gyroscopic(V_r[k], Mk)])
             b_fl[k] = self.gyroscopic_PM(body, eta, eta_dot, V_r[k], body.m)
 
             V[k] = np.vstack([V_f[k], V_r[k]])
@@ -207,7 +208,7 @@ class ATBI_Flex:
 
             # External force
             # F_ext_term = np.zeros((b_fl[k].shape[0], 1))
-            #F_ext_term = np.exp(- 5 * t) * np.vstack([PI.T @ F_ext, sb.phi(klOO) @ F_ext])
+            # F_ext_term = np.exp(- 5 * t) * np.vstack([PI.T @ F_ext, sb.phi(klOO) @ F_ext])
 
             F_ext_term = np.vstack([PI.T @ F_ext, sb.phi(klOO) @ F_ext])
 
@@ -232,7 +233,8 @@ class ATBI_Flex:
                 P_pr_plus[k] = tau_pr_bar @ P_pr[k]
 
                 # 13.7
-                z = b_fl[k] + K_fl @ np.vstack([eta, np.zeros((6, 1))]) - F_ext_term + C_fl @ np.vstack([eta_dot, np.zeros((6, 1))])
+                z = b_fl[k] + K_fl @ np.vstack([eta, np.zeros((6, 1))]) - \
+                    F_ext_term + C_fl @ np.vstack([eta_dot, np.zeros((6, 1))])
                 eps_m = - z[0:n_md]  # tau_m (assumed to be zero): dim(n_md, 1)
                 nu_m[k] = D_m_inv @ eps_m
 
@@ -265,7 +267,8 @@ class ATBI_Flex:
                 P_pr_plus[k] = tau_pr_bar @ P_pr[k]
 
                 # 13.7
-                z = A_fl @ R6 @ z_pr_plus[k-1] + b_fl[k] + K_fl @ np.vstack([eta, np.zeros((6, 1))]) - F_ext_term + C_fl @ np.vstack([eta_dot, np.zeros((6, 1))])
+                z = A_fl @ R6 @ z_pr_plus[k-1] + b_fl[k] + K_fl @ np.vstack([eta, np.zeros(
+                    (6, 1))]) - F_ext_term + C_fl @ np.vstack([eta_dot, np.zeros((6, 1))])
                 eps_m = - z[0:n_md]  # tau_m (assumed to be zero): dim(n_md, 1)
                 nu_m[k] = D_m_inv @ eps_m
 
