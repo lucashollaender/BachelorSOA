@@ -60,13 +60,10 @@ class ATBI_Flex:
         elif joint_type == "revz":
             ang = theta.item()
             q = np.array([[0], [0], [np.sin(ang/2)], [np.cos(ang/2)]])
-            q = q / np.linalg.norm(q)
-            # print(ang)
             return np.vstack((q, klOO)), q
 
         elif joint_type == "spherical":
             q = theta.reshape(4, 1)
-            q = q / np.linalg.norm(q)
             return np.vstack((q, klOO)), q
 
         elif joint_type == "free":
@@ -160,6 +157,12 @@ class ATBI_Flex:
             H_B = body.joint.H
             F_ext = body.force.F_ext
             tau_pr = body.force.tau
+            k_TS = body.force.k_TS
+            c_TS = body.force.c_TS
+            theta0_TS = body.force.theta0_TS
+            joint_type = body.joint.type
+            theta = state.Theta[k]
+            beta = state.Beta[k]
             eta = state.Eta[k]
             eta_dot = state.Eta_dot[k]
             M_fl = body.flex.M_fl
@@ -181,9 +184,16 @@ class ATBI_Flex:
                 F_ext_term = np.vstack([PI.T @ F_ext, sb.phi(klOO) @ F_ext])
             """
 
+            # Torsional spring
+            if joint_type.startswith("rev"):
+                tau_TS = - k_TS * (theta - theta0_TS) - c_TS * beta
+            elif joint_type == "spherical":
+                tau_TS = np.zeros((3, 1))
+            elif joint_type == "fixed":
+                tau_TS = np.zeros((0, 1))
+
             if k == 0:
                 # Gather loop for k = 0 (Base Case)
-                # 13.6
                 Gamma_fl = np.zeros((0, 6))
                 P_fl = M_fl
                 D_m[k] = H_M_fl @ P_fl @ H_M_fl.T
@@ -196,19 +206,17 @@ class ATBI_Flex:
                 tau_pr_bar = np.eye(6, 6) - G_pr[k] @ H_B
                 P_pr_plus[k] = tau_pr_bar @ P_pr[k]
 
-                # 13.7
                 z = b_fl[k] + K_fl @ np.vstack([eta, np.zeros((6, 1))]) - \
                     F_ext_term + C_fl @ np.vstack([eta_dot, np.zeros((6, 1))])
                 eps_m = - z[0:n_md]  # tau_m (assumed to be zero): dim(n_md, 1)
                 nu_m[k] = D_m_inv @ eps_m
 
                 z_pr = z[-6:] + g_fl[k] @ eps_m + P_pr[k] @ a_fl[k][-6:]
-                eps_pr = tau_pr - H_B @ z_pr
+                eps_pr = tau_pr - H_B @ z_pr + tau_TS
                 nu_pr[k] = la.solve(D_pr[k], eps_pr)
                 z_pr_plus[k] = z_pr + G_pr[k] @ eps_pr
 
             else:
-                # 13.6
                 # Unpacking X-vector
                 q = X[k-1][0:4]
 
@@ -222,6 +230,7 @@ class ATBI_Flex:
                 P_fl = A_fl @ Gamma_fl @ A_fl.T + M_fl
                 D_m[k] = H_M_fl @ P_fl @ H_M_fl.T
                 mu_fl = P_fl[-6:, :] @ H_M_fl.T
+                #D_m_inv = la.solve(D_m[k], np.eye(n_md), assume_a="sym")
                 D_m_inv = body.get_D_m_inv(Gamma_fl, 1)
                 g_fl[k] = mu_fl @ D_m_inv
                 P_pr[k] = P_fl[-6:, -6:] - g_fl[k] @ mu_fl.T
@@ -230,14 +239,13 @@ class ATBI_Flex:
                 tau_pr_bar = np.eye(6, 6) - G_pr[k] @ H_B
                 P_pr_plus[k] = tau_pr_bar @ P_pr[k]
 
-                # 13.7
                 z = A_fl @ R6 @ z_pr_plus[k-1] + b_fl[k] + K_fl @ np.vstack([eta, np.zeros(
                     (6, 1))]) - F_ext_term + C_fl @ np.vstack([eta_dot, np.zeros((6, 1))])
                 eps_m = - z[0:n_md]  # tau_m (assumed to be zero): dim(n_md, 1)
                 nu_m[k] = D_m_inv @ eps_m
 
                 z_pr = z[-6:] + g_fl[k] @ eps_m + P_pr[k] @ a_fl[k][-6:]
-                eps_pr = tau_pr - H_B @ z_pr
+                eps_pr = tau_pr - H_B @ z_pr + tau_TS
                 nu_pr[k] = la.solve(D_pr[k], eps_pr)
                 z_pr_plus[k] = z_pr + G_pr[k] @ eps_pr
 

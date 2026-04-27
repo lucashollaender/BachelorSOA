@@ -18,13 +18,14 @@ class MultibodySystem:
     def EOM(self, t, S):
         state = SystemState.unpack(
             S.reshape(-1, 1), [b.joint for b in self.bodies], [b.flex for b in self.bodies])
-
+        """
         # Normalize quaternions
         for k, body in enumerate(self.bodies):
             if body.joint.type in ["spherical", "free"]:
                 q = state.Theta[k][0:4]
                 state.Theta[k][0:4] = q / np.linalg.norm(q)
-
+        """
+                
         X, V, a_fl, b_fl = self.ATBI.scatter_kinematics(state)
         G_pr, nu_pr, nu_m, g_fl = self.ATBI.gather_ATBI(
             state, a_fl, b_fl, X, t)
@@ -48,6 +49,9 @@ class MultibodySystem:
         if t > 2.38:
             raise RuntimeError("Stopped for debug near instability")"""
         Theta_dot, Eta_dot_list = [], []
+
+        """
+
         for k, body in enumerate(self.bodies):
             if body.joint.type.startswith("rev"):
                 Theta_dot.append(state.Beta[k].reshape(1, 1))
@@ -62,6 +66,33 @@ class MultibodySystem:
             elif body.joint.type == "fixed":
                 Theta_dot.append(np.zeros((0, 1)))
 
+            Eta_dot_list.append(state.Eta_dot[k].reshape(body.flex.n_md, 1))
+        """
+        
+        # Baumgarte stabilization gain (Tune this between 10 and 100 if needed)
+        alpha = 50  
+
+        for k, body in enumerate(self.bodies):
+            if body.joint.type.startswith("rev"):
+                Theta_dot.append(state.Beta[k].reshape(1, 1))
+                
+            elif body.joint.type == "spherical":
+                q = state.Theta[k]
+                beta = state.Beta[k]
+                
+                # Standard kinematic derivative
+                qdot = sb.quat_derivative(q, beta).reshape(4, 1)
+                
+                # Apply Baumgarte Stabilization
+                q_norm_sq = np.sum(q**2)
+                stab_term = alpha * (q_norm_sq - 1.0) * q
+                
+                Theta_dot.append(qdot - stab_term)
+                
+            elif body.joint.type == "fixed":
+                Theta_dot.append(np.zeros((0, 1)))
+
+            # Append eta dot for the flexible body
             Eta_dot_list.append(state.Eta_dot[k].reshape(body.flex.n_md, 1))
 
         S_dot = np.vstack([*Theta_dot, *theta_ddot, *

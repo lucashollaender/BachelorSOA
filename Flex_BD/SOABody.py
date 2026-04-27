@@ -16,6 +16,9 @@ class SOABody:
         def __init__(self, joint: Joint):
             self.tau = np.zeros((joint.beta_size(), 1))
             self.F_ext = np.zeros((6, 1))
+            self.k_TS = 0
+            self.c_TS = 0
+            self.theta0_TS = 0
 
     class InitialCondition:
         def __init__(self, joint: Joint, flex: Flex_Properties):
@@ -111,8 +114,10 @@ class SOABody:
     def set_F_ext(self, F_ext):
         self.force.F_ext = F_ext
 
-    def set_initial_theta0(self, theta0):
-        self.initialcondition.theta0 = theta0
+    def set_TS(self, k_TS, c_TS, theta0_TS):
+        self.force.k_TS = k_TS
+        self.force.c_TS = c_TS
+        self.force.theta0_TS = theta0_TS
 
     def set_initial_beta0(self, beta0):
         self.initialcondition.beta0 = beta0
