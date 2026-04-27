@@ -60,7 +60,11 @@ bodies = [b1]
 
 system = MultibodySystem(bodies)
 
+<<<<<<< HEAD
 tf = 5
+=======
+tf = 10
+>>>>>>> b026bae8f2c4bef9e406ae185c11c327a0ff947d
 dt = 0.01
 
 sim = Simulation(system, tf, dt)

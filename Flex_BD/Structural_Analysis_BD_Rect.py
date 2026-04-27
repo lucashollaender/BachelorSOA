@@ -117,18 +117,20 @@ class Structural_Analysis_BD_Rect:
         for i in range(n_nd):
             p = np.zeros((3, 1))
             if i == 0:
-                p = np.array([(1 / 4) * L_e, 0, 0]).reshape(3, 1)   # left end node
+                p = np.array([(1 / 4) * L_e, 0, 0]
+                             ).reshape(3, 1)   # left end node
             elif i == n_nd - 1:
-                p = np.array([ - (1 / 4) * L_e, 0, 0]).reshape(3, 1)   # right end node
+                p = np.array([- (1 / 4) * L_e, 0, 0]
+                             ).reshape(3, 1)   # right end node
 
             # centroidal inertia of assigned nodal lump
             # interior nodes get full element length, end nodes get half length
             L_slice = L_e if (0 < i < n_nd - 1) else L_e / 2
 
             Jc = (m[i] / 12.0) * np.diag([
-            self.w**2 + self.h**2,    # about x
-            L_slice**2 + self.h**2,   # about y
-            L_slice**2 + self.w**2    # about z
+                self.w**2 + self.h**2,    # about x
+                L_slice**2 + self.h**2,   # about y
+                L_slice**2 + self.w**2    # about z
             ])
 
             # shift centroidal inertia to node origin: J = Jc - m skew(p)@skew(p)
@@ -136,20 +138,20 @@ class Structural_Analysis_BD_Rect:
 
             # full 6x6 spatial inertia block
             Mj = np.block([
-            [J,              m[i] * sb.skew(p)],
-            [-m[i] * sb.skew(p), m[i] * np.eye(3)]
+                [J,              m[i] * sb.skew(p)],
+                [-m[i] * sb.skew(p), m[i] * np.eye(3)]
             ])
 
             M_blocks.append(Mj)
             J_list[i] = J
             p_list[i] = p
-        
+
         self.J_list = J_list
         self.p_list = p_list
 
         M_st = la.block_diag(*M_blocks)
         return M_st
-    
+
     def get_PI(self):
 
         M = self.M_st
@@ -220,7 +222,7 @@ class Structural_Analysis_BD_Rect:
     def get_Modal_Int(self):
         # Parameters
         m = self.m
-        m_nd = self.m_nd #.reshape(-1, 1)
+        m_nd = self.m_nd  # .reshape(-1, 1)
         L_elem = self.L_elem
         n_md = self.n_md
         n_nd = self.n_nd
@@ -249,17 +251,22 @@ class Structural_Analysis_BD_Rect:
 
             # Compute sums
             p_0_sum += m_nd[i] * (p[i] + klkO)
-            J_0_sum += J[i] - m_nd[i] * (klkO_skew @ klkO_skew + p_skew @ klkO_skew + klkO_skew @ p_skew)
+            J_0_sum += J[i] - m_nd[i] * \
+                (klkO_skew @ klkO_skew + p_skew @ klkO_skew + klkO_skew @ p_skew)
 
             for r in range(n_md):
                 gamma_r = gamma[i * 3: i * 3 + 3, r]
                 lambda_r = lambda_[i * 3: i * 3 + 3, r]
 
-                F_0_sum[:, r] += J[i] @ lambda_r + m_nd[i] * (klkO_skew + p_skew) @ gamma_r - m_nd[i] * klkO_skew @ p_skew @ lambda_r
+                F_0_sum[:, r] += J[i] @ lambda_r + m_nd[i] * \
+                    (klkO_skew + p_skew) @ gamma_r - \
+                    m_nd[i] * klkO_skew @ p_skew @ lambda_r
                 E_0_sum[:, r] += m_nd[i] * (gamma_r - p_skew @ lambda_r)
                 p_1_sum[:, r] += m_nd[i] * gamma_r
-                J_1_sum[:, 3 * r: 3 * r + 3] += m_nd[i] * sb.skew(lambda_r) @ (klkO_skew + p_skew)
-                S_1_sum[:, 3 * r: 3 * r + 3] += sb.skew(m_nd[i] * p_skew @ gamma_r) @ klkO_skew - J[i] @ sb.skew(lambda_r)
+                J_1_sum[:, 3 * r: 3 * r + 3] += m_nd[i] * \
+                    sb.skew(lambda_r) @ (klkO_skew + p_skew)
+                S_1_sum[:, 3 * r: 3 * r + 3] += sb.skew(
+                    m_nd[i] * p_skew @ gamma_r) @ klkO_skew - J[i] @ sb.skew(lambda_r)
                 for s in range(n_md):
                     gamma_s = gamma[i * 3: i*3 + 3, s]
                     lambda_s = lambda_[i * 3: i * 3 + 3, s]
