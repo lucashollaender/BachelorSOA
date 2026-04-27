@@ -75,9 +75,7 @@ class Simulation:
                 t_span=(0, self.tf),
                 y0=self.system.S0,
                 t_eval=t_eval,
-                method=self.setting.solver,
-                rtol=1e-8,
-                atol=1e-10
+                method=self.setting.solver
             )
 
             # Checking if integration actually succeeds

@@ -264,11 +264,7 @@ class Structural_Analysis_BD_Rect:
                     gamma_s = gamma[i * 3: i*3 + 3, s]
                     lambda_s = lambda_[i * 3: i * 3 + 3, s]
 
-                    gf = gamma_r.T @ gamma_s
-                    gf1 = lambda_s.T @ p_skew @ gamma_r
-                    gf2 = lambda_r.T @ J[i] @ lambda_s
-
-                    G_0_sum[r, s] += lambda_r.T @ J[i] @ lambda_s + m_nd[i] * (gamma_r.T @ p_skew @ gamma_s + lambda_s.T @ p_skew @ gamma_r+ gamma_r.T @ gamma_s)
+                    G_0_sum[r, s] += lambda_r.T @ J[i] @ lambda_s + m_nd[i] * (lambda_r.T @ p_skew @ gamma_s + lambda_s.T @ p_skew @ gamma_r + gamma_r.T @ gamma_s)
                     #J_2_sum[3*r:3*r+3, 3*s:3*s+3] += m_nd[i] * sb.skew(gamma_r) @ sb.skew(gamma_s)
                     #F_1_sum[3*r:3*r+3, s] += m_nd[i] * sb.skew(gamma_r) @ gamma_s
 
@@ -276,7 +272,7 @@ class Structural_Analysis_BD_Rect:
         self.p_0 = 1/m * p_0_sum
         self.p_1 = 1/m * p_1_sum
         self.J_0 = J_0_sum
-        self.J_1 = J_1_sum #-
+        self.J_1 = - J_1_sum
         #self.J_2 = - J_2_sum
         self.F_0 = F_0_sum
         self.F_1 = F_1_sum

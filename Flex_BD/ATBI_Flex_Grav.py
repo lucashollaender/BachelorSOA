@@ -20,9 +20,9 @@ class ATBI_Flex:
         deltaV = H.T @ beta
 
         a01 = sb.skew(V_k[0:3]) @ deltaV[0:3]
-        a02 = sb.skew(V_p[0:3]) @ sb.skew(V_p[0:3]) @ klOO
+        a02 = sb.skew(R3.T @ V_p[0:3]) @ sb.skew(V_p[0:3]) @ klOO
 
-        return np.vstack([a01, R3.T @ a02])
+        return np.vstack([a01, a02])
 
     def gyroscopic(self, V, M):
         return sb.bar6(V) @ M @ V
@@ -42,7 +42,7 @@ class ATBI_Flex:
         b_eta = np.zeros((n_md, 1))
 
         for i in range(n_md):
-            b_eta[i] = - omega.T @ (S_1[:, 3 * i: 3 * i + 3] @ J_1[:, 3 * i: 3 * i + 3]) @ omega
+            b_eta[i] = - omega.T @ (S_1[:, 3 * i: 3 * i + 3] + J_1[:, 3 * i: 3 * i + 3]) @ omega
 
         return np.vstack([b_eta, sb.skew(omega) @ J_0 @ omega, m * sb.skew(omega) @ sb.skew(omega) @ p_0])
 
