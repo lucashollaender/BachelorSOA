@@ -999,17 +999,16 @@ class ATBI_Flex:
 
             # Build A: NB! Typo in text?!?!
             R3 = sb.q2R(q.flatten(), 3)
-            A_fl[k] = sb.get_A(PI, R3.T @ X[k][4:7])
+            A_fl[k] = sb.get_A(PI, X[k][4:7])
 
             if k == n - 1:
                 V_f[k] = eta_dot
                 V_r[k] = H.T @ beta
             else:
                 R6 = sb.q2R(q.flatten(), 6)
-                R_tot = sb.get_R_tot(R6, n_md)
 
                 V_f[k] = eta_dot
-                V_r[k] = A_fl[k+1].T @ R_tot.T @ V[k+1] + H.T @ beta
+                V_r[k] = R6@A_fl[k+1].T @ V[k+1] + H.T @ beta
 
             a_fl[k] = np.vstack(
                 [np.zeros((n_md, 1)), self.coriolis(V_r[k], beta, H)])
