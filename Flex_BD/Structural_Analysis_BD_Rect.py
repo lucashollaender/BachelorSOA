@@ -5,7 +5,7 @@ from SOALIB import soalib as sb
 from Body_Properties import Joint, Rigid_Properties, Flex_Properties
 
 
-class Structural_Analysis_CB_Rect:
+class Structural_Analysis_BD_Rect:
     """
     Class:
     Structural analysis of 3D rectangular cantilever beam with point mass assumption.
@@ -101,6 +101,7 @@ class Structural_Analysis_CB_Rect:
     def get_M_st(self):
         L_e = self.L_elem
         m_e = self.m_e
+        n_nd = self.n_nd
 
         # nodal masses
         m = np.full(self.n_nd, m_e)
@@ -109,18 +110,19 @@ class Structural_Analysis_CB_Rect:
         self.m_nd = m
 
         M_blocks = []
+        J_list = [None] * n_nd
+        p_list = [None] * n_nd
 
-        for i in range(self.n_nd):
-            # COM offset from node to nodal lump centroid
-            p = np.zeros(3)
+        for i in range(n_nd):
+            p = np.zeros((3, 1))
             if i == 0:
-                p = np.array([ L_e / 4, 0.0, 0.0])   # left end node
-            elif i == self.n_nd - 1:
-                p = np.array([-L_e / 4, 0.0, 0.0])   # right end node
+                p = np.array([(1 / 4) * L_e, 0, 0]).reshape(3, 1)   # left end node
+            elif i == n_nd - 1:
+                p = np.array([ - (1 / 4) * L_e, 0, 0]).reshape(3, 1)   # right end node
 
             # centroidal inertia of assigned nodal lump
             # interior nodes get full element length, end nodes get half length
-            L_slice = L_e if (0 < i < self.n_nd - 1) else L_e / 2
+            L_slice = L_e if (0 < i < n_nd - 1) else L_e / 2
 
             Jc = (m[i] / 12.0) * np.diag([
             self.w**2 + self.h**2,    # about x
@@ -129,19 +131,23 @@ class Structural_Analysis_CB_Rect:
             ])
 
             # shift centroidal inertia to node origin: J = Jc - m skew(p)@skew(p)
-            J = Jc - m[i] * skew(p)@skew(p)
+            J = Jc - m[i] * sb.skew(p) @ sb.skew(p)
 
             # full 6x6 spatial inertia block
             Mj = np.block([
-            [J,              m[i] * skew(p)],
-            [-m[i] * skew(p), m[i] * np.eye(3)]
+            [J,              m[i] * sb.skew(p)],
+            [-m[i] * sb.skew(p), m[i] * np.eye(3)]
             ])
 
             M_blocks.append(Mj)
+            J_list[i] = J
+            p_list[i] = p
+        
+        self.J_list = J_list
+        self.p_list = p_list
 
         M_st = la.block_diag(*M_blocks)
         return M_st
-
     
     def get_PI(self):
 
@@ -213,60 +219,69 @@ class Structural_Analysis_CB_Rect:
     def get_Modal_Int(self):
         # Parameters
         m = self.m
-        m_nd = self.m_nd.reshape(-1, 1)
+        m_nd = self.m_nd #.reshape(-1, 1)
         L_elem = self.L_elem
         n_md = self.n_md
         n_nd = self.n_nd
         lambda_ = self.lambda_
         gamma = self.gamma
-        #J_nd = m_nd * np.array([1/12 * (self.w**2 + self.h**2), 1/12 * (self.w**2 + self.h**2)])
-        #p_nd = 
+        J = self.J_list
+        p = self.p_list
 
         # Initialize sums
         p_0_sum = np.zeros((3, 1))
         p_1_sum = np.zeros((3, n_md))
-        CkJk_0_sum = np.zeros((3, 3))
-        CkJk_1_sum = np.zeros((3, 3*n_md))
-        CkJk_2_sum = np.zeros((3*n_md, 3*n_md))
+        J_0_sum = np.zeros((3, 3))
+        J_1_sum = np.zeros((3, 3*n_md))
+        J_2_sum = np.zeros((3*n_md, 3*n_md))
         F_0_sum = np.zeros((3, n_md))
         F_1_sum = np.zeros((3*n_md, n_md))
         G_0_sum = np.zeros((n_md, n_md))
         E_0_sum = np.zeros((3, n_md))
+        S_1_sum = np.zeros((3, 3*n_nd))
 
         for i in range(n_nd):
             # Parameters
             klkO = np.array([i * L_elem, 0, 0]).reshape(3, 1)
             klkO_skew = sb.skew(klkO)
+            p_skew = sb.skew(p[i])
 
             # Compute sums
-            p_0_sum += m_nd[i] * klkO
-
-            CkJk_0_sum += - m_nd[i] * klkO_skew @ klkO_skew
+            p_0_sum += m_nd[i] * (p[i] + klkO)
+            J_0_sum += J[i] - m_nd[i] * (klkO_skew @ klkO_skew + p_skew @ klkO_skew + klkO_skew @ p_skew)
 
             for r in range(n_md):
-                F_0_sum[:, r] += m_nd[i] * \
-                    klkO_skew @ gamma[i * 3: i * 3 + 3, r]
-                E_0_sum[:, r] += m_nd[i] * gamma[i * 3: i*3 + 3, r]
-                p_1_sum[:, r] += m_nd[i] * gamma[i * 3: i*3 + 3, r]
-                CkJk_1_sum[:, 3 * r: 3 * r + 3] += m_nd[i] * \
-                    sb.skew(gamma[i * 3: i*3 + 3, r]) @ klkO_skew
+                gamma_r = gamma[i * 3: i * 3 + 3, r]
+                lambda_r = lambda_[i * 3: i * 3 + 3, r]
+
+                F_0_sum[:, r] += J[i] @ lambda_r + m_nd[i] * (klkO_skew + p_skew) @ gamma_r - m_nd[i] * klkO_skew @ p_skew @ lambda_r
+                E_0_sum[:, r] += m_nd[i] * (gamma_r - p_skew @ lambda_r)
+                p_1_sum[:, r] += m_nd[i] * gamma_r
+                J_1_sum[:, 3 * r: 3 * r + 3] += m_nd[i] * sb.skew(lambda_r) @ (klkO_skew + p_skew)
+                S_1_sum[:, 3 * r: 3 * r + 3] += sb.skew(m_nd[i] * p_skew @ gamma_r) @ klkO_skew - J[i] @ sb.skew(lambda_r)
                 for s in range(n_md):
-                    G_0_sum[r, s] += m_nd[i] * gamma[i * 3: i * 3 + 3, r].T @ gamma[i * 3: i*3 + 3, s]
-                    CkJk_2_sum[3*r:3*r+3, 3*s:3*s+3] += m_nd[i] * sb.skew(gamma[i * 3: i *
-                                                                               3 + 3, r]) @ sb.skew(gamma[i * 3: i*3 + 3, s])
-                    F_1_sum[3*r:3*r+3, s] += m_nd[i] * sb.skew(gamma[i * 3: i *
-                                                                    3 + 3, r]) @ gamma[i * 3: i*3 + 3, s]
+                    gamma_s = gamma[i * 3: i*3 + 3, s]
+                    lambda_s = lambda_[i * 3: i * 3 + 3, s]
+
+                    gf = gamma_r.T @ gamma_s
+                    gf1 = lambda_s.T @ p_skew @ gamma_r
+                    gf2 = lambda_r.T @ J[i] @ lambda_s
+
+                    G_0_sum[r, s] += lambda_r.T @ J[i] @ lambda_s + m_nd[i] * (gamma_r.T @ p_skew @ gamma_s + lambda_s.T @ p_skew @ gamma_r+ gamma_r.T @ gamma_s)
+                    #J_2_sum[3*r:3*r+3, 3*s:3*s+3] += m_nd[i] * sb.skew(gamma_r) @ sb.skew(gamma_s)
+                    #F_1_sum[3*r:3*r+3, s] += m_nd[i] * sb.skew(gamma_r) @ gamma_s
 
         # Store modal integrals
         self.p_0 = 1/m * p_0_sum
         self.p_1 = 1/m * p_1_sum
-        self.CkJk_0 = CkJk_0_sum
-        self.CkJk_1 = - CkJk_1_sum
-        self.CkJk_2 = - CkJk_2_sum
+        self.J_0 = J_0_sum
+        self.J_1 = J_1_sum #-
+        #self.J_2 = - J_2_sum
         self.F_0 = F_0_sum
-        self.F_1 = - F_1_sum
+        self.F_1 = F_1_sum
         self.G_0 = G_0_sum
         self.E_0 = E_0_sum
+        self.S_1 = S_1_sum
 
     def get_M_fl(self):
         # Collect modal integrals
@@ -274,7 +289,7 @@ class Structural_Analysis_CB_Rect:
 
         # Parameters
         p_0_skew = sb.skew(self.p_0)
-        CkJk_0 = self.CkJk_0
+        J_0 = self.J_0
         F_0 = self.F_0
         G_0 = self.G_0
         E_0 = self.E_0
@@ -283,7 +298,7 @@ class Structural_Analysis_CB_Rect:
 
         # Build M
         rw1 = np.hstack([G_0, F_0.T, E_0.T])
-        rw2 = np.hstack([F_0, CkJk_0, m * p_0_skew])
+        rw2 = np.hstack([F_0, J_0, m * p_0_skew])
         rw3 = np.hstack([E_0, -m * p_0_skew, m * np.eye(3)])
 
         return np.vstack([rw1, rw2, rw3])

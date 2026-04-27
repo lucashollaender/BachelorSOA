@@ -91,10 +91,11 @@ class SOABody:
             self.flex.C_fl = body_analysis.C_fl
 
             # Modal integral for gyroscopic force
-            self.flex.p_1 = body_analysis.p_1
+            self.flex.p_0 = body_analysis.p_0
+            self.flex.S_1 = body_analysis.S_1
             self.flex.F_1 = body_analysis.F_1
-            self.flex.CkJk_1 = body_analysis.CkJk_1
-            self.flex.CkJk_2 = body_analysis.CkJk_2
+            self.flex.J_0 = body_analysis.J_0
+            self.flex.J_1 = body_analysis.J_1
 
         # D_m invers (offline)
         H_M_fl = np.hstack([np.eye(self.flex.n_md, self.flex.n_md), np.zeros((self.flex.n_md, 6))])
