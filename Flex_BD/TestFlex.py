@@ -12,7 +12,7 @@ H_type1 = "revy"
 H_type2 = "revy"
 
 # n_md_max = (n_nd - 1) * 3
-E, G, c, rho, n_nd, n_md = 230e9, 80e9, 0.02, 7850, 10, 7
+E, G, c, rho, n_nd, n_md = 230e9, 80e9, 0.02, 7850, 10, 2
 
 w, h = 0.04, 0.04
 
@@ -54,11 +54,11 @@ M = b1.flex.M_fl
 # eta0 = np.array([0, 0, 0, 0, 10, 0]).reshape(6, 1)
 # b1.set_initial_eta0(eta0)
 
-bodies = [b1, b2]
+bodies = [b1, b2, b3]
 
 system = MultibodySystem(bodies)
 
-tf = 4
+tf = 10
 dt = 0.01
 
 sim = Simulation(system, tf, dt)

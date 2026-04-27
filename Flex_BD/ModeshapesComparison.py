@@ -2,12 +2,12 @@ import numpy as np
 import scipy.linalg as la
 import matplotlib.pyplot as plt
 from Body_Properties import Joint, Rigid_Properties, Flex_Properties
-from Structural_Analysis_CB_Rect import Structural_Analysis_CB_Rect
+from Structural_Analysis_BD_Rect import Structural_Analysis_BD_Rect
 import pandas as pd
 
 # Settings
 L = 1
-klOO1 = np.array([0, 0, L]).reshape(3, 1)
+klOO1 = np.array([L, 0, 0]).reshape(3, 1)
 
 E = 230e9
 G = 80e9
@@ -15,7 +15,7 @@ c = 0.02
 rho = 7850
 
 n_nd = 10
-n_md = 10
+n_md = 7
 
 w = 0.04
 h = 0.04   # non-square section helps separate bending pairs
@@ -38,7 +38,7 @@ r1.CkJk = np.array([
 ])
 
 # Get numerical mode shapes
-analysis = Structural_Analysis_CB_Rect(j1, r1, f1)
+analysis = Structural_Analysis_BD_Rect(j1, r1, f1)
 PI_e = analysis.PI_e
 
 # Computing natural frequencies

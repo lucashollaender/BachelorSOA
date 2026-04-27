@@ -30,23 +30,6 @@ class MultibodySystem:
             state, a_fl, b_fl, X, t)
         theta_ddot, eta_ddot, alpha_fl = self.ATBI.scatter_ATBI(
             a_fl, X, G_pr, nu_pr, nu_m, g_fl)
-
-        # Uncomment for at se hvad der blower up. Lige nu(theta_ddot, nu_pr og alpha_fl)
-        """if t > 2.35:
-            print("\n--- DEBUG t =", t, "---")
-            for k in range(len(self.bodies)):
-                print("k =", k)
-                print("theta =", state.Theta[k].flatten())
-                print("beta =", state.Beta[k].flatten())
-                print("eta =", state.Eta[k].flatten())
-                print("eta_dot =", state.Eta_dot[k].flatten())
-                print("theta_ddot =", theta_ddot[k].flatten())
-                print("eta_ddot =", eta_ddot[k].flatten())
-                print("nu_pr =", nu_pr[k].flatten())
-                print("nu_m =", nu_m[k].flatten())
-                print("alpha_fl norm =", np.linalg.norm(alpha_fl[k]))
-        if t > 2.38:
-            raise RuntimeError("Stopped for debug near instability")"""
         Theta_dot, Eta_dot_list = [], []
         for k, body in enumerate(self.bodies):
             if body.joint.type.startswith("rev"):
