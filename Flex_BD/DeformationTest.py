@@ -49,7 +49,6 @@ for i in range(3, n+1, 1):
 
     print(f"Nodes: {i}")
 
-
     # Find deformation
     eta = sim.data.state[-1].Eta[0]
     body = sim.system.bodies[0]
@@ -68,14 +67,14 @@ u_EB = F_ext1[5, 0] * L**3 / (3 * E * I_x)
 A = w * h
 I = w * h**3 / 12
 k = 5/6
-F = F_ext1[5,0]
+F = F_ext1[5, 0]
 
 u_T = F*L**3/(3*E*I) + F*L/(k*G*A)
 
 plt.figure()
 
 plt.plot(node_list, u, 'o-', label="SOA solution")
-#plt.axhline(u_EB, linestyle='--', label="Euler-Bernoulli")
+# plt.axhline(u_EB, linestyle='--', label="Euler-Bernoulli")
 plt.axhline(u[-1], linestyle='--', label="Timoshenko")
 
 plt.xlabel("Number of nodes")
@@ -85,6 +84,3 @@ plt.legend()
 plt.grid()
 
 plt.show()
-
-
-

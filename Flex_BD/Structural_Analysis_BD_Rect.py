@@ -64,7 +64,8 @@ class Structural_Analysis_BD_Rect:
         # Stiffness matrix
         diag = [None] * 6
 
-        diag[0] = np.array([X, Y_1, Z_1, S, Z_3, Y_3, X, Y_1, Z_1, S, Z_3, Y_3])
+        diag[0] = np.array(
+            [X, Y_1, Z_1, S, Z_3, Y_3, X, Y_1, Z_1, S, Z_3, Y_3])
         diag[1] = np.array([0, 0, -Z_2, 0, 0, -Y_2, 0, 0, Z_2, 0])
         diag[2] = np.array([0, Y_2, 0, 0, Z_2, 0, 0, -Y_2])
         diag[3] = np.array([-X, -Y_1, -Z_1, -S, Z_4, Y_4])
@@ -158,7 +159,7 @@ class Structural_Analysis_BD_Rect:
         B = []
         for i in boundary_nodes:
             B.extend(range(6*i, 6*i+6))
-        
+
         all_dofs = list(range(6*self.n_nd))
         I = [k for k in all_dofs if k not in B]
         K_BB = K[np.ix_(B, B)]
@@ -177,8 +178,8 @@ class Structural_Analysis_BD_Rect:
         self.PI_e = np.vstack([np.zeros((6, self.n_md)), PI_e])
 
         PI_c = np.block([
-        [np.eye(6), np.zeros((6, self.n_md))],
-        [PI_b, PI_e]])
+            [np.eye(6), np.zeros((6, self.n_md))],
+            [PI_b, PI_e]])
 
         M_n = PI_c.T @ M @ PI_c
         K_n = PI_c.T @ K @ PI_c
@@ -195,7 +196,7 @@ class Structural_Analysis_BD_Rect:
         print("PI_c")
         print(pd.DataFrame(PI_c))
         """
-        
+
         PI_n = PI_n[:, 6:]
 
         PI = PI_c @ PI_n
@@ -304,7 +305,7 @@ class Structural_Analysis_BD_Rect:
         return np.vstack([rw1, rw2, rw3])
 
     def get_C_fl(self):
-        
+
         # Damping setup
         zeta = self.c * np.ones(self.n_md)
 

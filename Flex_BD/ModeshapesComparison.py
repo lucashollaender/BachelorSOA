@@ -9,13 +9,13 @@ import pandas as pd
 L = 1
 klOO1 = np.array([0, 0, L]).reshape(3, 1)
 
-E = 1e7
-G = 3.8e6
+E = 230e9
+G = 80e9
 c = 0.02
-rho = 1000
+rho = 7850
 
-n_nd = 20
-n_md = 6
+n_nd = 10
+n_md = 10
 
 w = 0.04
 h = 0.04   # non-square section helps separate bending pairs
@@ -40,7 +40,6 @@ r1.CkJk = np.array([
 # Get numerical mode shapes
 analysis = Structural_Analysis_CB_Rect(j1, r1, f1)
 PI_e = analysis.PI_e
-# e
 
 # Computing natural frequencies
 K = analysis.K_st
@@ -80,7 +79,9 @@ betaL_bending = np.array([
     14.13716839,
     17.27875953,
     20.42035225,
-    23.56194490
+    23.56194490,
+    26.70353756,
+    29.84513021
 ])
 
 # Section properties used for analytical frequencies
@@ -183,7 +184,8 @@ def get_mode_components(PI, mode_idx, n_nd):
 # -------------------------------------------------
 def classify_mode(PI, mode_idx, n_nd):
     theta_x, theta_y, theta_z, u_x, u_y, u_z = get_mode_components(
-        PI, mode_idx, n_nd)
+        PI, mode_idx, n_nd
+    )
 
     amp_torsion = la.norm(theta_x)
     amp_axial = la.norm(u_x)
@@ -261,7 +263,8 @@ analytical_freqs = []
 
 print("\nMode classification summary")
 print(
-    "mode | type       | num freq [Hz] | ana freq [Hz] | ||u_y||   | ||u_z||   | ||u_x||   | ||theta_x||")
+    "mode | type       | num freq [Hz] | ana freq [Hz] | ||u_y||   | ||u_z||   | ||u_x||   | ||theta_x||"
+)
 print("-" * 100)
 
 family_counters = {
@@ -295,25 +298,81 @@ for r in range(n_md):
 
 # -------------------------------------------------
 # Plot classified shapes against best analytical match
+# More visible version for 10 modes
 # -------------------------------------------------
-fig, axes = plt.subplots(n_md, 1, figsize=(8, 2.5 * n_md), sharex=True)
-if n_md == 1:
-    axes = [axes]
+plt.rcParams.update({
+    "font.size": 11,
+    "axes.labelsize": 12,
+    "axes.titlesize": 12,
+    "legend.fontsize": 10,
+    "xtick.labelsize": 10,
+    "ytick.labelsize": 10,
+})
 
-for r, ax in enumerate(axes):
+ncols = 2
+nrows = int(np.ceil(n_md / ncols))
+
+fig, axes = plt.subplots(
+    nrows,
+    ncols,
+    figsize=(15, 3.8 * nrows),
+    sharex=True,
+    constrained_layout=True
+)
+
+axes = np.array(axes).reshape(-1)
+
+for r in range(n_md):
+    ax = axes[r]
     num_shape = num_shapes[r]
     mode_type = mode_types[r]
 
     ref, ref_label, best_mac = best_reference(
-        mode_type, num_shape, x_nodes, xi, n_md)
+        mode_type, num_shape, x_nodes, xi, n_md
+    )
 
-    ax.plot(x_nodes, num_shape, "o-", label=f"PI_e mode {r+1} ({mode_type})")
-    ax.plot(x_nodes, ref, "--", label=f"{ref_label}, MAC={best_mac:.4f}")
-    ax.set_ylabel("normalized")
-    ax.grid(True)
-    ax.legend(loc="best")
+    ax.plot(
+        x_nodes,
+        num_shape,
+        "o-",
+        linewidth=2.8,
+        markersize=6.5,
+        label=f"Numerical mode {r+1}"
+    )
 
-axes[-1].set_xlabel("x [m]")
-plt.suptitle("PI_e mode labeling: bending-y / bending-z / axial / torsion")
-plt.tight_layout()
+    ax.plot(
+        x_nodes,
+        ref,
+        "--",
+        linewidth=2.6,
+        label=f"{ref_label}, MAC={best_mac:.4f}"
+    )
+
+    ax.axhline(0.0, linestyle=":", linewidth=1.2)
+    ax.grid(True, linestyle="--", alpha=0.6)
+
+    ax.set_xlim(0.0, L)
+    ax.set_ylim(-1.15, 1.15)
+
+    ax.set_title(
+        f"Mode {r+1}: {mode_type}\n"
+        f"Num = {omega_e[r]/(2*np.pi):.3f} Hz, "
+        f"Ana = {analytical_freqs[r]:.3f} Hz"
+    )
+
+    ax.legend(loc="best", frameon=True)
+
+# Hide unused axes if any
+for k in range(n_md, len(axes)):
+    axes[k].axis("off")
+
+# x-label only on bottom row
+for ax in axes[-ncols:]:
+    ax.set_xlabel("x [m]")
+
+fig.suptitle(
+    "Modes: bending-y / bending-z / axial / torsion",
+    fontsize=15
+)
+
 plt.show()

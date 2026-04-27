@@ -24,11 +24,16 @@ j2 = Joint(klOO2, H_type2)
 r2 = Rigid_Properties(rho, w, h)
 f2 = Flex_Properties(E, G, c, n_nd, n_md)
 
+j3 = Joint(klOO2, H_type2)
+r3 = Rigid_Properties(rho, w, h)
+f3 = Flex_Properties(E, G, c, n_nd, n_md)
+
 b1 = SOABody(j1, r1, f1)
 b2 = SOABody(j2, r2, f2)
+b3 = SOABody(j3, r3, f3)
 
-#b1.set_initial_beta0(1)
-#b1.set_initial_eta0(np.array([0, 0, 0, 0, 0, 0, 0]).reshape(7, 1))
+# b1.set_initial_beta0(1)
+# b1.set_initial_eta0(np.array([0, 0, 0, 0, 0, 0, 0]).reshape(7, 1))
 
 PIe = b1.flex.PI_end
 
@@ -39,15 +44,15 @@ print(np.linalg.norm(PIe[5, :]))
 K = b1.flex.K_fl
 M = b1.flex.M_fl
 
-#F_ext1 = np.array([0, 0, 0, 0, 1e5, 0]).reshape(6, 1)
-#b1.set_F_ext(F_ext1)
-#F_ext2 = np.array([1e4, 0, 0, 0, 0, 0]).reshape(6, 1)
-#b2.set_F_ext(F_ext2)
-#b1.set_initial_beta0(2)
+# F_ext1 = np.array([0, 0, 0, 0, 1e5, 0]).reshape(6, 1)
+# b1.set_F_ext(F_ext1)
+# F_ext2 = np.array([1e4, 0, 0, 0, 0, 0]).reshape(6, 1)
+# b2.set_F_ext(F_ext2)
+# b1.set_initial_beta0(2)
 
-#eta0 = np.vstack([np.array([5]), np.zeros((n_md-1, 1))]).reshape(6, 1)
-#eta0 = np.array([0, 0, 0, 0, 10, 0]).reshape(6, 1)
-#b1.set_initial_eta0(eta0)
+# eta0 = np.vstack([np.array([5]), np.zeros((n_md-1, 1))]).reshape(6, 1)
+# eta0 = np.array([0, 0, 0, 0, 10, 0]).reshape(6, 1)
+# b1.set_initial_eta0(eta0)
 
 bodies = [b1, b2]
 
