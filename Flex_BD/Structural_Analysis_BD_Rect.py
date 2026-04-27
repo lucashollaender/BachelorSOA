@@ -5,7 +5,7 @@ from SOALIB import soalib as sb
 from Body_Properties import Joint, Rigid_Properties, Flex_Properties
 
 
-class Structural_Analysis_CB_Rect:
+class Structural_Analysis_BD_Rect:
     """
     Class:
     Structural analysis of 3D rectangular cantilever beam with point mass assumption.
@@ -64,7 +64,8 @@ class Structural_Analysis_CB_Rect:
         # Stiffness matrix
         diag = [None] * 6
 
-        diag[0] = np.array([X, Y_1, Z_1, S, Z_3, Y_3, X, Y_1, Z_1, S, Z_3, Y_3])
+        diag[0] = np.array(
+            [X, Y_1, Z_1, S, Z_3, Y_3, X, Y_1, Z_1, S, Z_3, Y_3])
         diag[1] = np.array([0, 0, -Z_2, 0, 0, -Y_2, 0, 0, Z_2, 0])
         diag[2] = np.array([0, Y_2, 0, 0, Z_2, 0, 0, -Y_2])
         diag[3] = np.array([-X, -Y_1, -Z_1, -S, Z_4, Y_4])
@@ -111,17 +112,17 @@ class Structural_Analysis_CB_Rect:
         M_blocks = []
 
         for i in range(self.n_nd):
-        # J about the node origin
+            # J about the node origin
             J = (m[i] / 12.0) * np.diag([
-            self.w**2 + self.h**2,   # about x
-            L_e**2 + self.h**2,      # about y
-            L_e**2 + self.w**2       # about z
+                self.w**2 + self.h**2,   # about x
+                L_e**2 + self.h**2,      # about y
+                L_e**2 + self.w**2       # about z
             ])
 
         # if you want the full spatial inertia block about the node:
             Mj = np.block([
-            [J, np.zeros((3, 3))],
-            [np.zeros((3, 3)), m[i] * np.eye(3)]
+                [J, np.zeros((3, 3))],
+                [np.zeros((3, 3)), m[i] * np.eye(3)]
             ])
 
             M_blocks.append(Mj)
@@ -139,7 +140,7 @@ class Structural_Analysis_CB_Rect:
         B = []
         for i in boundary_nodes:
             B.extend(range(6*i, 6*i+6))
-        
+
         all_dofs = list(range(6*self.n_nd))
         I = [k for k in all_dofs if k not in B]
         K_BB = K[np.ix_(B, B)]
@@ -158,8 +159,8 @@ class Structural_Analysis_CB_Rect:
         self.PI_e = np.vstack([np.zeros((6, self.n_md)), PI_e])
 
         PI_c = np.block([
-        [np.eye(6), np.zeros((6, self.n_md))],
-        [PI_b, PI_e]])
+            [np.eye(6), np.zeros((6, self.n_md))],
+            [PI_b, PI_e]])
 
         M_n = PI_c.T @ M @ PI_c
         K_n = PI_c.T @ K @ PI_c
@@ -176,7 +177,7 @@ class Structural_Analysis_CB_Rect:
         print("PI_c")
         print(pd.DataFrame(PI_c))
         """
-        
+
         PI_n = PI_n[:, 6:]
 
         PI = PI_c @ PI_n
@@ -206,8 +207,8 @@ class Structural_Analysis_CB_Rect:
         n_nd = self.n_nd
         lambda_ = self.lambda_
         gamma = self.gamma
-        #J_nd = m_nd * np.array([1/12 * (self.w**2 + self.h**2), 1/12 * (self.w**2 + self.h**2)])
-        #p_nd = 
+        # J_nd = m_nd * np.array([1/12 * (self.w**2 + self.h**2), 1/12 * (self.w**2 + self.h**2)])
+        # p_nd =
 
         # Initialize sums
         p_0_sum = np.zeros((3, 1))
@@ -238,11 +239,12 @@ class Structural_Analysis_CB_Rect:
                 CkJk_1_sum[:, 3 * r: 3 * r + 3] += m_nd[i] * \
                     sb.skew(gamma[i * 3: i*3 + 3, r]) @ klkO_skew
                 for s in range(n_md):
-                    G_0_sum[r, s] += m_nd[i] * gamma[i * 3: i * 3 + 3, r].T @ gamma[i * 3: i*3 + 3, s]
+                    G_0_sum[r, s] += m_nd[i] * gamma[i * 3: i *
+                                                     3 + 3, r].T @ gamma[i * 3: i*3 + 3, s]
                     CkJk_2_sum[3*r:3*r+3, 3*s:3*s+3] += m_nd[i] * sb.skew(gamma[i * 3: i *
-                                                                               3 + 3, r]) @ sb.skew(gamma[i * 3: i*3 + 3, s])
+                                                                                3 + 3, r]) @ sb.skew(gamma[i * 3: i*3 + 3, s])
                     F_1_sum[3*r:3*r+3, s] += m_nd[i] * sb.skew(gamma[i * 3: i *
-                                                                    3 + 3, r]) @ gamma[i * 3: i*3 + 3, s]
+                                                                     3 + 3, r]) @ gamma[i * 3: i*3 + 3, s]
 
         # Store modal integrals
         self.p_0 = 1/m * p_0_sum
@@ -276,7 +278,7 @@ class Structural_Analysis_CB_Rect:
         return np.vstack([rw1, rw2, rw3])
 
     def get_C_fl(self):
-        
+
         # Damping setup
         zeta = self.c * np.ones(self.n_md)
 

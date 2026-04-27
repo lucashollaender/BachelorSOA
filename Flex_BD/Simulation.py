@@ -80,6 +80,12 @@ class Simulation:
                 atol=1e-6
             )
 
+            # Checking if integration actually succeeds
+            if not sol.success:
+                self.system.EOM = original_EOM
+                pbar.close()
+                raise RuntimeError(f"Integration failed: {sol.message}")
+
             self.data.time = sol.t
             states = sol.y.T
 
@@ -312,12 +318,13 @@ class Simulation:
 
             # Camera control
             if self.setting.camera_speed == 0 and frame_idx == 0 and camera_initialized == False:
-                ax.view_init(elev=self.setting.camera_ver, azim=self.setting.camera_hor)
+                ax.view_init(elev=self.setting.camera_ver,
+                             azim=self.setting.camera_hor)
                 camera_initialized = True
             elif self.setting.camera_speed != 0:
                 ax.view_init(elev=self.setting.camera_ver,
-                    azim=self.setting.camera_hor + frame_idx * self.setting.camera_speed * 40 * dt)
-                
+                             azim=self.setting.camera_hor + frame_idx * self.setting.camera_speed * 40 * dt)
+
             return (*lines, node_dots, time_text)
 
         # Create Animation
