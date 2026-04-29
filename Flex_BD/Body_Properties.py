@@ -59,7 +59,7 @@ class Rigid_Properties:
 
 
 class Flex_Properties:
-    def __init__(self, E, G, c, n_nd, n_md):
+    def __init__(self, E, G, c, n_nd, n_md, mode_selection=None):
         self.E = E
         self.G = G
         self.c = c
@@ -73,6 +73,10 @@ class Flex_Properties:
         self.omega = [None]
         self.PI = [None]
         self.PI_end = [None]
+
+        # Mode selection
+        self.mode_selection = mode_selection
+        self.modes = []
 
     def set_PI(self, PI):
         self.PI = PI

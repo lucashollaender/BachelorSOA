@@ -24,6 +24,8 @@ class Simulation:
             self.camera_ver = 20
             self.camera_hor = 0
             self.solver = "RK4"
+            self.atol = 1e-3
+            self.rtol = 1e-6
 
     def __init__(self, system: MultibodySystem, tf, dt):
         self.system = system
@@ -76,8 +78,8 @@ class Simulation:
                 y0=self.system.S0,
                 t_eval=t_eval,
                 method=self.setting.solver,
-                atol=1e-8,
-                rtol=1e-10
+                atol=self.setting.atol,
+                rtol=self.setting.rtol
             )
 
             # Checking if integration actually succeeds
@@ -156,6 +158,10 @@ class Simulation:
 
     def set_ani_dt(self, x):
         self.setting.ani_dt = x
+
+    def set_tol(self, atol, rtol):
+        self.setting.atol = atol
+        self.setting.rtol = rtol
 
     def nNodalPos(self):
         t = self.data.time

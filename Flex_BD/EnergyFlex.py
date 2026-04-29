@@ -10,14 +10,14 @@ from Body_Properties import Joint, Rigid_Properties, Flex_Properties
 # Setup: 2-Body Spherical Pendulum
 klOO1 = np.array([1, 0, 0]).reshape(3, 1)
 klOO2 = np.array([1, 0, 0]).reshape(3, 1)
-H_type1 = "revy"
-H_type2 = "revy"
+H_type1 = "spherical"
+H_type2 = "spherical"
 
 # Flexible Parameters
 E, G = 230e9, 80e9
 c = 0.0
 rho = 7850
-n_nd, n_md = 10, 2
+n_nd, n_md = 10, 6
 w, h = 0.04, 0.04
 
 # Properties for Body 1
@@ -37,13 +37,14 @@ bodies = [b1, b2]
 system = MultibodySystem(bodies)
 
 # Time properties
-tf = 1
+tf = 5
 dt = 0.01
 
 # Simulate
 sim = Simulation(system, tf, dt)
 sim.IntegrateSystem("Radau")
 sim.set_camera_speed(0)
+sim.set_tol(1e-10, 1e-12)
 
 sim.animate_nodes()
 

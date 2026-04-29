@@ -15,7 +15,7 @@ class SOABody:
     class Force:
         def __init__(self, joint: Joint):
             self.tau = np.zeros((joint.beta_size(), 1))
-            self.F_ext = np.zeros((6, 1))
+            self.F_ext = []
             self.k_TS = 0
             self.c_TS = 0
             self.theta0_TS = 0
@@ -40,7 +40,6 @@ class SOABody:
         self.rigid = rigid
         self.flex = flex
         self.force = self.Force(self.joint)
-        self.initialcondition = self.InitialCondition(joint, flex)
         rigid.A = rigid.h * rigid.w
         rigid.L = joint.L
         flex.L_elem = joint.L / flex.n_elem
@@ -54,39 +53,16 @@ class SOABody:
         if self.flex.PI == [None]:
             body_analysis = Structural_Analysis_BD_Rect(joint, rigid, flex)
 
-            """
-            print("p_0")
-            print(pd.DataFrame(body_analysis.p_0))
-            print("p_1")
-            print(pd.DataFrame(body_analysis.p_1))
-            print("CkJk_0")
-            print(pd.DataFrame(body_analysis.CkJk_0))
-            print("CkJk_1")
-            print(pd.DataFrame(body_analysis.CkJk_1))
-            print("CkJk_2")
-            print(pd.DataFrame(body_analysis.CkJk_2))
-            print("F_0")
-            print(pd.DataFrame(body_analysis.F_0))
-            print("F_1")
-            print(pd.DataFrame(body_analysis.F_1))
-            print("G_0")
-            print(pd.DataFrame(body_analysis.G_0))
-            print("E_0")
-            print(pd.DataFrame(body_analysis.E_0))
-            print("omega^2")
-            print(pd.DataFrame(body_analysis.omega2))
-            print("PI_t")
-            print(pd.DataFrame(body_analysis.PI_t))
-            print("K_st")
-            print(pd.DataFrame(body_analysis.K_st))
-            """
-
             # PI
             self.flex.PI = body_analysis.PI
             self.flex.PI_e = body_analysis.PI_e
             self.flex.PI_end = body_analysis.PI[-6:, :]
             self.flex.omega2 = body_analysis.omega2
             self.flex.omega = body_analysis.omega
+
+            # Mode selection
+            self.flex.modes = body_analysis.modes
+            self.flex.n_md = body_analysis.n_md
 
             # Stiffness, damping and mass matrix
             self.flex.K_fl = body_analysis.K_fl
@@ -100,19 +76,61 @@ class SOABody:
             self.flex.J_0 = body_analysis.J_0
             self.flex.J_1 = body_analysis.J_1
 
-        # D_m invers (offline)
-        H_M_fl = np.hstack([np.eye(self.flex.n_md, self.flex.n_md), np.zeros((self.flex.n_md, 6))])
-        A_fl = sb.get_A(self.flex.PI_end, self.joint.klOO)
-        self.flex.L_fl = la.inv(H_M_fl @ self.flex.M_fl @ H_M_fl.T)
-        zeta = H_M_fl @ A_fl
-        self.flex.U_fl = self.flex.L_fl @ zeta
-        self.flex.D_fl = zeta.T @ self.flex.U_fl
+        self.initialcondition = self.InitialCondition(joint, self.flex)
+
+        # D_m inverse (offline)
+        if self.flex.n_md == 0:
+            # Rigid Body
+            self.flex.L_fl = np.zeros((0, 0))
+            self.flex.U_fl = np.zeros((0, 6))
+            self.flex.D_fl = np.zeros((6, 6))
+        else:
+            # Standard flexible body formulation
+            H_M_fl = np.hstack([np.eye(self.flex.n_md), np.zeros((self.flex.n_md, 6))])
+            A_fl = sb.get_A(self.flex.PI_end, self.joint.klOO)
+            self.flex.L_fl = la.inv(H_M_fl @ self.flex.M_fl @ H_M_fl.T)
+            zeta = H_M_fl @ A_fl
+            self.flex.U_fl = self.flex.L_fl @ zeta
+            self.flex.D_fl = zeta.T @ self.flex.U_fl
 
     def set_tau(self, tau):
         self.force.tau = tau
+    
+    def set_F_ext(self, node=-1, F_ext=None, F_fun=None):
+        """
+        Add external spatial force/moment at a selected node.
 
-    def set_F_ext(self, F_ext):
-        self.force.F_ext = F_ext
+        How to call:
+        b1.set_F_ext(F_ext)                    # constant tip force
+        b1.set_F_ext(node=-1, F_ext=F_ext)     # constant tip force
+        b1.set_F_ext(node=3, F_ext=F_ext)      # constant force at node 3
+        b1.set_F_ext(node=3, F_fun=my_fun)     # time-dependent force
+        """
+
+        if F_ext is None and F_fun is None:
+            arr = np.asarray(node)
+            if arr.size == 6:
+                F_ext = arr.reshape(6, 1)
+                node = -1
+            else:
+                raise ValueError("Provide either F_ext or F_fun.")
+
+        # Constant F_ext
+        if F_fun is None:
+            F_const = np.asarray(F_ext, dtype=float).reshape(6, 1)
+
+            def constant_force_fun(t, state, body):
+                return F_const
+
+            force_function = constant_force_fun
+        # Function F_ext in terms of time, t
+        else:
+            force_function = F_fun
+
+        self.force.F_ext.append({
+        "node": int(node),
+        "fun": force_function
+        })
 
     def set_TS(self, k_TS, c_TS, theta0_TS):
         self.force.k_TS = k_TS
@@ -128,12 +146,13 @@ class SOABody:
     def set_initial_eta_dot0(self, eta_dot0):
         self.initialcondition.eta_dot0 = eta_dot0
 
-    def get_D_m_inv(self, Gamma, x):
+    def get_D_m_inv(self, Gamma, type):
         # Calculate D_m_inv
-        if x == 0:
+        if self.flex.n_md == 0:
+            return np.zeros((0, 0))
+            
+        if type == "tip":
             Dminv = self.flex.L_fl
-        elif x == 1:
-            #Gamma_inv = la.inv(Gamma)
-            #Dminv = self.flex.L_fl - la.solve((Gamma_inv + self.flex.D_fl).T, self.flex.U_fl.T).T @ self.flex.U_fl.T
+        elif type == "not_tip":
             Dminv = self.flex.L_fl - self.flex.U_fl @ la.solve((np.eye(6, 6) + Gamma @ self.flex.D_fl), Gamma) @ self.flex.U_fl.T
         return Dminv

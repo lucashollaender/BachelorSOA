@@ -74,6 +74,65 @@ class ATBI_Flex:
         elif joint_type == "fixed":
             q = np.array([[0], [0], [0], [1]])
             return np.vstack((q, klOO)), q
+    
+    def get_node_position(self, body, node):
+        """
+        Position vector from body reference/inboard node to selected node.
+        Assumes straight beam discretized uniformly along body.joint.klOO.
+        """
+        n_nd = body.flex.n_nd
+
+        if node < 0:
+            node = n_nd + node
+
+        if node < 0 or node >= n_nd:
+            raise IndexError(f"node={node} outside valid range 0...{n_nd-1}")
+
+        s = node / (n_nd - 1)
+        return s * body.joint.klOO.reshape(3, 1)
+
+    def get_F_ext_term(self, body, state, t):
+        """
+        Returns flexible generalized external force contribution:
+        [modal part; rigid spatial part]
+        """
+        n_md = body.flex.n_md
+        F_ext_term = np.zeros((n_md + 6, 1))
+
+        PI_full = body.flex.PI  # shape: (6*n_nd, n_md)
+
+        for load in body.force.F_ext:
+            node = load["node"]
+            F_j = load["fun"](t, state, body).reshape(6, 1)
+
+            # Mode-shape block for selected node
+            PI_j = PI_full[6*node : 6*node + 6, :]
+
+            # Vector from body reference to selected node
+            r_j = self.get_node_position(body, node)
+
+            F_ext_term += np.vstack([
+            PI_j.T @ F_j,
+            sb.phi(r_j) @ F_j
+            ])
+
+        return F_ext_term
+    
+    def get_TS_term(self, body, theta, beta):
+        k_TS = body.force.k_TS
+        c_TS = body.force.c_TS
+        theta0_TS = body.force.theta0_TS
+        joint_type = body.joint.type
+
+        # Torsional spring
+        if joint_type.startswith("rev"):
+                tau_TS = - k_TS * (theta - theta0_TS) - c_TS * beta
+        elif joint_type == "spherical":
+                tau_TS = np.zeros((3, 1)) # Not implemented for spherical joint
+        elif joint_type == "fixed":
+                tau_TS = np.zeros((0, 1))
+        
+        return tau_TS
 
     def scatter_kinematics(self, state: SystemState):
 
@@ -159,10 +218,6 @@ class ATBI_Flex:
             H_B = body.joint.H
             F_ext = body.force.F_ext
             tau_pr = body.force.tau
-            k_TS = body.force.k_TS
-            c_TS = body.force.c_TS
-            theta0_TS = body.force.theta0_TS
-            joint_type = body.joint.type
             theta = state.Theta[k]
             beta = state.Beta[k]
             eta = state.Eta[k]
@@ -175,32 +230,17 @@ class ATBI_Flex:
             H_M_fl = np.hstack([np.eye(n_md, n_md), np.zeros((n_md, 6))])
             klOO = X[k][4:7]
 
-            # External force
-            # F_ext_term = np.zeros((b_fl[k].shape[0], 1))
-            # F_ext_term = np.exp(- 5 * t) * np.vstack([PI.T @ F_ext, sb.phi(klOO) @ F_ext])
-
-            F_ext_term = np.vstack([PI.T @ F_ext, sb.phi(klOO) @ F_ext])
-
-            """
-            if t <= 0.25:
-                F_ext_term = np.vstack([PI.T @ F_ext, sb.phi(klOO) @ F_ext])
-            """
-
-            # Torsional spring
-            if joint_type.startswith("rev"):
-                tau_TS = - k_TS * (theta - theta0_TS) - c_TS * beta
-            elif joint_type == "spherical":
-                tau_TS = np.zeros((3, 1))
-            elif joint_type == "fixed":
-                tau_TS = np.zeros((0, 1))
+            # Applied loads and springs
+            F_ext_term = self.get_F_ext_term(body, state, t)
+            tau_TS_term = self.get_TS_term(body, theta, beta)
 
             if k == 0:
-                # Gather loop for k = 0 (Base Case)
+                # Gather loop for k = 0 (Tip)
                 Gamma_fl = np.zeros((0, 6))
                 P_fl = M_fl
                 D_m[k] = H_M_fl @ P_fl @ H_M_fl.T
                 mu_fl = P_fl[-6:, :] @ H_M_fl.T
-                D_m_inv = body.get_D_m_inv(Gamma_fl, 0)
+                D_m_inv = body.get_D_m_inv(Gamma_fl, "tip")
                 g_fl[k] = mu_fl @ D_m_inv
                 P_pr[k] = P_fl[-6:, -6:] - g_fl[k] @ mu_fl.T
                 D_pr[k] = H_B @ P_pr[k] @ H_B.T
@@ -214,7 +254,7 @@ class ATBI_Flex:
                 nu_m[k] = D_m_inv @ eps_m
 
                 z_pr = z[-6:] + g_fl[k] @ eps_m + P_pr[k] @ a_fl[k][-6:]
-                eps_pr = tau_pr - H_B @ z_pr + tau_TS
+                eps_pr = tau_pr - H_B @ z_pr + tau_TS_term
                 nu_pr[k] = la.solve(D_pr[k], eps_pr)
                 z_pr_plus[k] = z_pr + G_pr[k] @ eps_pr
 
@@ -227,13 +267,13 @@ class ATBI_Flex:
 
                 A_fl = sb.get_A(PI, klOO)
 
-                # Gather loop for k > 0
+                # Gather loop for k > 0 (Not tip)
                 Gamma_fl = R6 @ P_pr_plus[k-1] @ R6.T  # ?!?!?!?
                 P_fl = A_fl @ Gamma_fl @ A_fl.T + M_fl
                 D_m[k] = H_M_fl @ P_fl @ H_M_fl.T
                 mu_fl = P_fl[-6:, :] @ H_M_fl.T
                 #D_m_inv = la.solve(D_m[k], np.eye(n_md), assume_a="sym")
-                D_m_inv = body.get_D_m_inv(Gamma_fl, 1)
+                D_m_inv = body.get_D_m_inv(Gamma_fl, "not_tip")
                 g_fl[k] = mu_fl @ D_m_inv
                 P_pr[k] = P_fl[-6:, -6:] - g_fl[k] @ mu_fl.T
                 D_pr[k] = H_B @ P_pr[k] @ H_B.T
@@ -247,7 +287,7 @@ class ATBI_Flex:
                 nu_m[k] = D_m_inv @ eps_m
 
                 z_pr = z[-6:] + g_fl[k] @ eps_m + P_pr[k] @ a_fl[k][-6:]
-                eps_pr = tau_pr - H_B @ z_pr + tau_TS
+                eps_pr = tau_pr - H_B @ z_pr + tau_TS_term
                 nu_pr[k] = la.solve(D_pr[k], eps_pr)
                 z_pr_plus[k] = z_pr + G_pr[k] @ eps_pr
 

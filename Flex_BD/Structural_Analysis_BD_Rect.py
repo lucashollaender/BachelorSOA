@@ -152,66 +152,129 @@ class Structural_Analysis_BD_Rect:
         M_st = la.block_diag(*M_blocks)
         return M_st
 
+    def identify_mode_labels(self):
+        labels = []
+
+        for r in range(self.PI_e.shape[1]):
+            pie = self.PI_e[:, r]
+
+            rx = pie[0::6]   # rot_x
+            ry = pie[1::6]   # rot_y
+            rz = pie[2::6]   # rot_z
+            ux = pie[3::6]   # x translation
+            uy = pie[4::6]   # y translation
+            uz = pie[5::6]   # z translation
+
+            torsion_x = np.linalg.norm(self.L * rx)
+            axial_x = np.linalg.norm(ux)
+            bending_xy = np.linalg.norm(uy) + np.linalg.norm(self.L * rz)
+            bending_xz = np.linalg.norm(uz) + np.linalg.norm(self.L * ry)
+
+            scores = {
+                "torsion_x": torsion_x,
+                "axial_x": axial_x,
+                "bending_xy": bending_xy,
+                "bending_xz": bending_xz,
+            }
+
+            label = max(scores, key=scores.get)
+
+            labels.append({
+                "mode": r + 1,
+                "freq_hz": self.omega[r] / (2*np.pi),
+                "label": label,
+                "score": scores[label],
+            })
+
+        return labels
+
     def get_PI(self):
+        # Parameters
+        n_nd = self.n_nd
+        n_md_compute = self.n_md_compute
+        mode_selection = self.mode_selection
+        M_st = self.M_st
+        K_st = self.K_st
 
-        M = self.M_st
-        K = self.K_st
-        # Indexing B(boundary) I(interior) Follows Adams flex notation
-        boundary_nodes = [0]          # Cantilever beam
-        B = []
-        for i in boundary_nodes:
-            B.extend(range(6*i, 6*i+6))
+        # Zero modes (Rigid body)
+        if n_md_compute == 0:
+            self.PI_e = np.zeros((6 * n_nd, 0))
+            self.PI = self.PI_e
+            self.omega2 = np.array([])
+            self.omega = np.array([])
+            self.modes = []
+            self.n_md = 0
+            self.gamma = np.zeros((3 * n_nd, 0))
+            self.lambda_ = np.zeros((3 * n_nd, 0))
+            return self.PI_e
 
-        all_dofs = list(range(6*self.n_nd))
-        I = [k for k in all_dofs if k not in B]
-        K_BB = K[np.ix_(B, B)]
-        K_BI = K[np.ix_(B, I)]
-        K_IB = K[np.ix_(I, B)]
-        K_II = K[np.ix_(I, I)]
-        M_II = M[np.ix_(I, I)]
+        # Apply boundary conditions (fixed at root node 0)
+        bnd_nodes = [0]
+        dof_bnd = []
+        for i in bnd_nodes:
+            dof_bnd.extend(range(6 * i, 6 * i + 6))
 
-        # We compute constraint modes from static deformation shape
-        PI_b = - la.solve(K_II, K_IB)
+        dof_all = list(range(6 * n_nd))
+        dof_int = [i for i in dof_all if i not in dof_bnd]
 
-        # Solve eigenvalue problem for Pi_t (Mass normalized!)
-        eig_e, PI_e = la.eigh(K_II, M_II, subset_by_index=(0, self.n_md - 1))
+        # Interior partition of mass and stiffness matrices
+        K_int = K_st[np.ix_(dof_int, dof_int)]
+        M_int = M_st[np.ix_(dof_int, dof_int)]
 
-        # Extract PI_e
-        self.PI_e = np.vstack([np.zeros((6, self.n_md)), PI_e])
+        # Compute candidate fixed-boundary modes
+        n_md_cand = min(n_md_compute, K_int.shape[0])
 
-        PI_c = np.block([
-            [np.eye(6), np.zeros((6, self.n_md))],
-            [PI_b, PI_e]])
+        # Solve generalized eigenvalue problem for interior DOFs
+        eig_val, PI_int = la.eigh(
+            K_int, M_int,
+            subset_by_index=(0, n_md_cand - 1)
+        )
 
-        M_n = PI_c.T @ M @ PI_c
-        K_n = PI_c.T @ K @ PI_c
+        # Reconstruct full mode shape matrix (zero displacement at boundary)
+        PI_full = np.vstack([np.zeros((6, n_md_cand)), PI_int])
 
-        omega2, PI_n = la.eigh(K_n, M_n)
+        # Temporary full storage used for mode classification
+        self.PI_e = PI_full
+        self.omega2 = eig_val
+        self.omega = np.sqrt(np.maximum(eig_val, 0.0))
 
-        # Store eigenvalues
-        self.omega2 = omega2[6:]
-        self.omega = np.sqrt(self.omega2)
+        # Identify mode labels
+        all_modes = self.identify_mode_labels()
 
-        """
-        print("PI_n")
-        print(pd.DataFrame(PI_n))
-        print("PI_c")
-        print(pd.DataFrame(PI_c))
-        """
+        # Mode selection
+        if mode_selection is not None:
+            used_count = {label: 0 for label in mode_selection}
+            keep_idx = []
 
-        PI_n = PI_n[:, 6:]
+            for i, mode in enumerate(all_modes):
+                label = mode["label"]
+                if label in mode_selection and used_count[label] < mode_selection[label]:
+                    keep_idx.append(i)
+                    used_count[label] += 1
+        else:
+            keep_idx = list(range(n_md_cand))
 
-        PI = PI_c @ PI_n
+        if len(keep_idx) == 0:
+            raise ValueError("No modes matched the selection criteria!")
 
-        # Extract lambda_ and gamma
-        self.gamma = np.zeros((3*self.n_nd, self.n_md))
-        self.lambda_ = np.zeros((3*self.n_nd, self.n_md))
-        for i in range(self.n_nd):
-            self.lambda_[i*3:i*3+3, :] = self.PI_e[i*6:i*6+3, :]
-            self.gamma[i*3:i*3+3, :] = self.PI_e[i*6+3:i*6+6, :]
+        # Reduce all modal quantities to the selected set
+        self.PI_e = PI_full[:, keep_idx]
+        self.PI = self.PI_e
+        self.omega2 = eig_val[keep_idx]
+        self.omega = np.sqrt(np.maximum(self.omega2, 0.0))
+        self.modes = [all_modes[i] for i in keep_idx]
+        self.n_md = len(keep_idx)
+
+        # Rebuild lambda and gamma mode matrices using the selected modes only
+        self.gamma = np.zeros((3 * n_nd, self.n_md))
+        self.lambda_ = np.zeros((3 * n_nd, self.n_md))
+
+        for i in range(n_nd):
+            self.lambda_[i * 3: i * 3 + 3, :] = self.PI_e[i * 6: i * 6 + 3, :]
+            self.gamma[i * 3: i * 3 + 3, :] = self.PI_e[i * 6 + 3: i * 6 + 6, :]
 
         return self.PI_e
-
+    
     def get_K_fl(self):
         # Initialize K
         K = np.zeros((self.n_md + 6, self.n_md + 6))
@@ -241,7 +304,7 @@ class Structural_Analysis_BD_Rect:
         F_1_sum = np.zeros((3*n_md, n_md))
         G_0_sum = np.zeros((n_md, n_md))
         E_0_sum = np.zeros((3, n_md))
-        S_1_sum = np.zeros((3, 3*n_nd))
+        S_1_sum = np.zeros((3, 3*n_md))
 
         for i in range(n_nd):
             # Parameters
@@ -337,6 +400,10 @@ class Structural_Analysis_BD_Rect:
         self.n_elem = self.n_nd - 1
         self.L_elem = self.L / self.n_elem
         self.m_e = self.rho * self.A * self.L_elem
+
+        # Mode selection
+        self.n_md_compute = flex.n_md
+        self.mode_selection = flex.mode_selection
 
         # Structural analysis
         self.K_st = self.get_K_st()
