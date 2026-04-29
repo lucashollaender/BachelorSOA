@@ -1061,7 +1061,8 @@ class ATBI_Flex:
         A_fl = [None] * n
 
         # Spatial gravity
-        g = np.array([0, 0, 0, 0, 0, 9.81]).reshape(6, 1)
+        #g = np.array([0, 0, 0, 0, 0, 9.81]).reshape(6, 1)
+        g = np.array([0, 0, 0, 0, 0, 0]).reshape(6, 1)
 
         # Spatial gravity rotation setup
         Ri = [None] * (n + 1)
@@ -1541,7 +1542,7 @@ if __name__ == "__main__":
     mode_quota={
         "bending_xy": 2,
         "bending_xz": 2,
-        "axial_x": 0
+        "axial_x": 1
     })
 
     j2 = Joint(klOO2, H_type2)
@@ -1564,12 +1565,14 @@ if __name__ == "__main__":
         else:
             return np.zeros((6, 1))
 
-    b1.add_F_ext(node=b1.flex.n_nd - 1, F_fun=pulse_force)
+    b1.add_F_ext(node=b1.flex.n_nd // 2, F_fun=pulse_force)
+
+    F_tip = np.array([0, 0, 0, 100, 0, 0]).reshape(6, 1)
+    b1.add_F_ext(node=b1.flex.n_nd - 1, F_ext=F_tip)
     
     #b1.add_F_ext(node=b1.flex.n_nd - 2, F_fun=decaying_tip_force)
 
-    #F_tip = np.array([0, 0, 0, 0, 0, 50]).reshape(6, 1)
-    #b1.add_F_ext(node=b1.flex.n_nd - 7, F_ext=F_tip)
+    
 
     #F_ext2 = np.array([0, 0, 0, 1e3, 0, 0]).reshape(6, 1)
     #b2.set_F_ext(F_ext2)
