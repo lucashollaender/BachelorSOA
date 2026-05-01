@@ -11,6 +11,8 @@ from SOALIB import soalib as sb
 import pandas as pd
 from tqdm import tqdm
 
+# Increase limit to 100 MB (default is 20)
+plt.rcParams['animation.embed_limit'] = 1000
 
 class Simulation:
     class Data:
@@ -34,9 +36,6 @@ class Simulation:
         self.tf = tf
         self.dt = dt
         self.setting.ani_dt = dt
-
-        # Increase limit to 100 MB (default is 20)
-        plt.rcParams['animation.embed_limit'] = 1000
 
     def IntegrateSystem(self, solver="RK4"):
         self.setting.solver = solver

@@ -388,7 +388,7 @@ class Structural_Analysis_BD_Rect:
         self.w = rigid.w
         self.h = rigid.h
         self.L = rigid.L
-        self.A = rigid.w * rigid.h
+        self.A = rigid.A
         self.rho = rigid.rho
         self.m = self.rho * self.A * self.L
         self.E = flex.E
@@ -409,12 +409,6 @@ class Structural_Analysis_BD_Rect:
         self.K_st = self.get_K_st()
         self.M_st = self.get_M_st()
         self.PI = self.get_PI()
-        """
-        print("PI")
-        print(pd.DataFrame(self.PI))
-        print("omega")
-        print(pd.DataFrame(self.omega))
-        """
         self.K_fl = self.get_K_fl()
         self.M_fl = self.get_M_fl()
         self.C_fl = self.get_C_fl()

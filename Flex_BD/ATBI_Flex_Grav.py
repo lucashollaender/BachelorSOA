@@ -4,7 +4,6 @@ from SOALIB import soalib as sb
 from SystemState import SystemState
 import pandas as pd
 
-
 class ATBI_Flex:
     # ATBI class with bodies
     def __init__(self, bodies):
@@ -12,132 +11,12 @@ class ATBI_Flex:
         self.bodies = bodies
         self.n = len(bodies)
 
-    def coriolis(self, V, beta, H):
-        deltaV = H.T @ beta
-        return sb.skew6(V) @ deltaV - sb.bar6(deltaV) @ deltaV
-
-    def coriolis_BD(self, V_k, V_p, beta, H, klOO, R3):
-        deltaV = H.T @ beta
-
-        a01 = sb.skew(V_k[0:3]) @ deltaV[0:3]
-        a02 = sb.skew(R3.T @ V_p[0:3]) @ sb.skew(R3.T @ V_p[0:3]) @ klOO
-
-        return np.vstack([a01, a02])
-
-    def gyroscopic(self, V, M):
-        return sb.bar6(V) @ M @ V
-
-    def gyroscopic_BD(self, body, V_r, m):
-        n_md = body.flex.n_md
-
-        # modal integrals
-        p_0 = body.flex.p_0
-        F_1 = body.flex.F_1
-        J_0 = body.flex.J_0
-        J_1 = body.flex.J_1
-        S_1 = body.flex.S_1
-
-        omega = V_r[0:3, :]
-
-        b_eta = np.zeros((n_md, 1))
-
-        for i in range(n_md):
-            b_eta[i] = - omega.T @ (S_1[:, 3 * i: 3 * i + 3] + J_1[:, 3 * i: 3 * i + 3]) @ omega
-
-        return np.vstack([b_eta, sb.skew(omega) @ J_0 @ omega, m * sb.skew(omega) @ sb.skew(omega) @ p_0])
-
-    def theta2X(self, theta, joint_type, klOO):
-        if joint_type == "revx":
-            ang = theta.item()
-            q = np.array([[np.sin(ang/2)], [0], [0], [np.cos(ang/2)]])
-            return np.vstack((q, klOO)), q
-
-        elif joint_type == "revy":
-            ang = theta.item()
-            q = np.array([[0], [np.sin(ang/2)], [0], [np.cos(ang/2)]])
-            return np.vstack((q, klOO)), q
-
-        elif joint_type == "revz":
-            ang = theta.item()
-            q = np.array([[0], [0], [np.sin(ang/2)], [np.cos(ang/2)]])
-            return np.vstack((q, klOO)), q
-
-        elif joint_type == "spherical":
-            q = theta.reshape(4, 1)
-            return np.vstack((q, klOO)), q
-
-        elif joint_type == "free":
-            q = theta[0:4].reshape(4, 1)
-            v = theta[4:7].reshape(3, 1)
-            return np.vstack((q, klOO)), q
-
-        elif joint_type == "fixed":
-            q = np.array([[0], [0], [0], [1]])
-            return np.vstack((q, klOO)), q
-    
-    def get_node_position(self, body, node):
-        """
-        Position vector from body reference/inboard node to selected node.
-        Assumes straight beam discretized uniformly along body.joint.klOO.
-        """
-        n_nd = body.flex.n_nd
-
-        if node < 0:
-            node = n_nd + node
-
-        if node < 0 or node >= n_nd:
-            raise IndexError(f"node={node} outside valid range 0...{n_nd-1}")
-
-        s = node / (n_nd - 1)
-        return s * body.joint.klOO.reshape(3, 1)
-
-    def get_F_ext_term(self, body, state, t):
-        """
-        Returns flexible generalized external force contribution:
-        [modal part; rigid spatial part]
-        """
-        n_md = body.flex.n_md
-        F_ext_term = np.zeros((n_md + 6, 1))
-
-        PI_full = body.flex.PI  # shape: (6*n_nd, n_md)
-
-        for load in body.force.F_ext:
-            node = load["node"]
-            F_j = load["fun"](t, state, body).reshape(6, 1)
-
-            # Mode-shape block for selected node
-            PI_j = PI_full[6*node : 6*node + 6, :]
-
-            # Vector from body reference to selected node
-            r_j = self.get_node_position(body, node)
-
-            F_ext_term += np.vstack([
-            PI_j.T @ F_j,
-            sb.phi(r_j) @ F_j
-            ])
-
-        return F_ext_term
-    
-    def get_TS_term(self, body, theta, beta):
-        k_TS = body.force.k_TS
-        c_TS = body.force.c_TS
-        theta0_TS = body.force.theta0_TS
-        joint_type = body.joint.type
-
-        # Torsional spring
-        if joint_type.startswith("rev"):
-                tau_TS = - k_TS * (theta - theta0_TS) - c_TS * beta
-        elif joint_type == "spherical":
-                tau_TS = np.zeros((3, 1)) # Not implemented for spherical joint
-        elif joint_type == "fixed":
-                tau_TS = np.zeros((0, 1))
-        
-        return tau_TS
-
     def scatter_kinematics(self, state: SystemState):
+        # Step 1 of ATBI (scatter sweep): Takes state and returns velocities, pose, Coriolis- and gyroscopic
+        # terms
 
         # Number of bodies
-        n = len(self.bodies)
+        n = self.n
 
         # Set up lists
         X = [None] * n
@@ -151,6 +30,7 @@ class ATBI_Flex:
         for k in reversed(range(n)):
             # Parameters of the body
             body = self.bodies[k]
+            joint = body.joint
             theta = state.Theta[k]
             beta = state.Beta[k]
             eta = state.Eta[k]
@@ -161,17 +41,19 @@ class ATBI_Flex:
             n_md = body.flex.n_md
 
             # Build X
-            X[k], q = self.theta2X(theta, body.joint.type, body.joint.klOO)
+            X[k], q = joint.get_theta2X(theta)
 
             # Build A: NB! Typo in text?!?!
             R3 = sb.q2R(q.flatten(), 3)
             A_fl[k] = sb.get_A(PI, X[k][4:7])
 
             if k == n - 1:
+                # Base body
                 V_f[k] = eta_dot
                 V_r[k] = H.T @ beta
 
-                a_fl[k] = self.coriolis_BD(V_r[k], np.zeros(
+                # Coriolis Acceleration (base)
+                a_fl[k] = body.coriolis_BD(V_r[k], np.zeros(
                     (6, 1)), beta, H, np.zeros((3, 1)), R3)
             else:
                 R6 = sb.q2R(q.flatten(), 6)
@@ -180,26 +62,27 @@ class ATBI_Flex:
                 V_f[k] = eta_dot
                 V_r[k] = R6.T @ A_fl[k+1].T @ V[k+1] + H.T @ beta
 
-                a_fl[k] = self.coriolis_BD(
+                # Coriolis Acceleration
+                a_fl[k] = body.coriolis_BD(
                     V_r[k], V_r[k+1], beta, H, R3.T @ X[k+1][4:7], R3)
 
-            # Coriolis
-            # a_fl[k] = np.vstack([np.zeros((n_md, 1)), self.coriolis(V_r[k], beta, H)])
-
-            # Gyroscopic
-            # b_fl[k] = np.vstack([np.zeros((n_md, 1)), self.gyroscopic(V_r[k], Mk)])
-            b_fl[k] = self.gyroscopic_BD(body, V_r[k], body.m)
+            # Gyroscopic Force
+            b_fl[k] = body.gyroscopic_BD(body, V_r[k], body.m)
+            
+            # Rigid formulations
+            # a_fl[k] = body.coriolis(V_r[k], beta, H, n_md)
+            # b_fl[k] = np.vstack([np.zeros((n_md, 1)), body.gyroscopic(V_r[k], Mk)])
 
             V[k] = np.vstack([V_f[k], V_r[k]])
 
         return X, V, a_fl, b_fl
 
     def gather_ATBI(self, state: SystemState, a_fl, b_fl, X, t):
-        # Step 3 of ATBI (gather sweep): Takes generalized forces, Coriolis-, gyroscopic
+        # Step 2 of ATBI (gather sweep): Takes generalized forces, Coriolis-, gyroscopic
         # terms, X-vector and system configuration and returns G and nu parameters
 
         # Number of bodies
-        n = len(self.bodies)
+        n = self.n
 
         # Setup lists
         P_pr_plus = [None] * n
@@ -231,8 +114,8 @@ class ATBI_Flex:
             klOO = X[k][4:7]
 
             # Applied loads and springs
-            F_ext_term = self.get_F_ext_term(body, state, t)
-            tau_TS_term = self.get_TS_term(body, theta, beta)
+            F_ext_term = body.get_F_ext_term(state, t)
+            tau_TS_term = body.get_TS_term(theta, beta)
 
             if k == 0:
                 # Gather loop for k = 0 (Tip)
@@ -294,11 +177,10 @@ class ATBI_Flex:
         return G_pr, nu_pr, nu_m, g_fl
 
     def scatter_ATBI(self, a_fl, X, G_pr, nu_pr, nu_m, g_fl):
-        # Step 4 of ATBI (second scatter sweep): Takes Coriolis term, X-vector, G,
-        # nu and hinge map, H and returns generalized acceleration, gamma
+        # Step 3 of ATBI (second scatter sweep): Takes found parameters in gather sweep and returns generalized acceleration and eta_ddot
 
         # Number of bodies
-        n = len(self.bodies)
+        n = self.n
 
         # Setup of list
         alpha_fl = [None] * n

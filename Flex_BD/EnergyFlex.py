@@ -10,15 +10,15 @@ from Body_Properties import Joint, Rigid_Properties, Flex_Properties
 # Setup: 2-Body Spherical Pendulum
 klOO1 = np.array([1, 0, 0]).reshape(3, 1)
 klOO2 = np.array([1, 0, 0]).reshape(3, 1)
-H_type1 = "spherical"
-H_type2 = "spherical"
+H_type1 = "revy"
+H_type2 = "revy"
 
 # Flexible Parameters
 E, G = 230e9, 80e9
 c = 0.0
 rho = 7850
-n_nd, n_md = 10, 6
-w, h = 0.04, 0.04
+n_nd, n_md = 10, 0
+w, h = 0.04, 0.06
 
 # Properties for Body 1
 j1 = Joint(klOO1, H_type1)
