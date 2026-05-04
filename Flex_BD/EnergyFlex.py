@@ -17,7 +17,7 @@ H_type2 = "revy"
 E, G = 230e9, 80e9
 c = 0.0
 rho = 7850
-n_nd, n_md = 10, 0
+n_nd, n_md = 10, 6
 w, h = 0.04, 0.06
 
 # Properties for Body 1
