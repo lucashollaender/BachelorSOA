@@ -474,7 +474,15 @@ class Structural_Analysis_BD_Rect:
         F_1_sum = np.zeros((3*n_md, n_md))
         G_0_sum = np.zeros((n_md, n_md))
         E_0_sum = np.zeros((3, n_md))
-        S_1_sum = np.zeros((3, 3*n_nd))
+        S_1_sum = np.zeros((3, 3*n_md))
+        S_2_sum = np.zeros((3*n_md, 3*n_md))
+        R_1_sum = np.zeros((3, n_md))
+        K_1_sum = np.zeros((3, 3*n_md))
+        K_2_sum = np.zeros((3*n_md, 3*n_md))
+        T_1_sum = np.zeros((3*n_md, n_md))
+        T_2_sum = np.zeros((3*n_md, n_md))
+        W_1_sum = np.zeros((3*n_md, n_md))
+        W_2_sum = np.zeros((3*n_md, n_md))
 
         for i in range(n_nd):
             # Parameters
@@ -493,27 +501,44 @@ class Structural_Analysis_BD_Rect:
                 F_0_sum[:, r] += J[i] @ lambda_r + m_nd[i] * (klkO_skew + p_skew) @ gamma_r - m_nd[i] * klkO_skew @ p_skew @ lambda_r
                 E_0_sum[:, r] += m_nd[i] * (gamma_r - p_skew @ lambda_r)
                 p_1_sum[:, r] += m_nd[i] * gamma_r
-                J_1_sum[:, 3 * r: 3 * r + 3] += m_nd[i] * sb.skew(lambda_r) @ (klkO_skew + p_skew)
+                J_1_sum[:, 3 * r: 3 * r + 3] += m_nd[i] * sb.skew(gamma_r) @ (klkO_skew + p_skew)
                 S_1_sum[:, 3 * r: 3 * r + 3] += sb.skew(m_nd[i] * p_skew @ gamma_r) @ klkO_skew - J[i] @ sb.skew(lambda_r)
+                R_1_sum[:, r] += J[i] @ lambda_r
+                K_1_sum[:, 3 * r: 3 * r + 3] += 2*klkO_skew@ sb.skew(m_nd[i]*p_skew@lambda_r)- J[i]@sb.skew(lambda_r)+ sb.skew(lambda_r)@J[i]
+
                 for s in range(n_md):
                     gamma_s = gamma[i * 3: i*3 + 3, s]
                     lambda_s = lambda_[i * 3: i * 3 + 3, s]
 
                     G_0_sum[r, s] += lambda_r.T @ J[i] @ lambda_s + m_nd[i] * (lambda_r.T @ p_skew @ gamma_s + lambda_s.T @ p_skew @ gamma_r+ gamma_r.T @ gamma_s)
-                    #J_2_sum[3*r:3*r+3, 3*s:3*s+3] += m_nd[i] * sb.skew(gamma_r) @ sb.skew(gamma_s)
-                    #F_1_sum[3*r:3*r+3, s] += m_nd[i] * sb.skew(gamma_r) @ gamma_s
+                    J_2_sum[3*r:3*r+3, 3*s:3*s+3] += m_nd[i] * sb.skew(gamma_r) @ sb.skew(gamma_s)
+                    F_1_sum[3*r:3*r+3, s] += m_nd[i] * sb.skew(gamma_r) @ gamma_s
+                    S_2_sum[3*r:3*r+3, 3*s:3*s+3] += sb.skew(m_nd[i]* p_skew @ lambda_r ) @ sb.skew(gamma_s)
+                    K_2_sum[3*r:3*r+3, 3*s:3*s+3] += 2* sb.skew(gamma_s) @ sb.skew(m_nd[i]* p_skew @ lambda_r )
+                    T_1_sum[3*r:3*r+3, s] += (m_nd[i]*sb.skew(gamma_r)@p_skew + J[i]@sb.skew(lambda_r) )@lambda_s
+                    T_2_sum[3*r:3*r+3, s] += (m_nd[i]*p_skew@ sb.skew(gamma_r)-sb.skew(lambda_r)@J[i] )@lambda_s
+                    W_1_sum[3*r:3*r+3, s] += m_nd[i]*sb.skew(lambda_r)@p_skew@gamma_s
+                    W_2_sum[3*r:3*r+3, s] += sb.skew(lambda_r)@ J[i]@ lambda_s   
 
         # Store modal integrals
         self.p_0 = 1/m * p_0_sum
         self.p_1 = 1/m * p_1_sum
         self.J_0 = J_0_sum
         self.J_1 = J_1_sum #-
-        #self.J_2 = - J_2_sum
+        self.J_2 = - J_2_sum
         self.F_0 = F_0_sum
         self.F_1 = F_1_sum
         self.G_0 = G_0_sum
         self.E_0 = E_0_sum
         self.S_1 = S_1_sum
+        self.S_2 = S_2_sum
+        self.R_1 = R_1_sum
+        self.K_1 = K_1_sum
+        self.K_2 = K_2_sum
+        self.T_1 = T_1_sum
+        self.T_2 = T_2_sum
+        self.W_1 = W_1_sum
+        self.W_2 = W_2_sum
 
     def get_M_fl(self):
         # Collect modal integrals
@@ -678,9 +703,22 @@ class SOABody:
             # Modal integral for gyroscopic force
             self.flex.p_0 = body_analysis.p_0
             self.flex.S_1 = body_analysis.S_1
+            self.flex.S_2 = body_analysis.S_2
             self.flex.F_1 = body_analysis.F_1
             self.flex.J_0 = body_analysis.J_0
             self.flex.J_1 = body_analysis.J_1
+            self.flex.J_2 = body_analysis.J_2
+            self.flex.T_1 = body_analysis.T_1
+            self.flex.T_2 = body_analysis.T_2
+            self.flex.W_1 = body_analysis.W_1
+            self.flex.W_2 = body_analysis.W_2
+            self.flex.p_1 = body_analysis.p_1
+            self.flex.E_0 = body_analysis.E_0
+            self.flex.R_1 = body_analysis.R_1
+            self.flex.K_1 = body_analysis.K_1
+            self.flex.K_2 = body_analysis.K_2
+
+
 
         # Initial conditions must be created after optional mode selection,
         # because flex.n_md may have changed.
@@ -784,7 +822,7 @@ class ATBI_Flex:
     def gyroscopic(self, V, M):
         return sb.bar6(V) @ M @ V
 
-    def gyroscopic_BD(self, body, V_r, m):
+    def gyroscopic_BD(self, body, V_r, m, eta, eta_dot):
         n_md = body.flex.n_md
 
         # modal integrals
@@ -792,18 +830,106 @@ class ATBI_Flex:
         F_1 = body.flex.F_1
         J_0 = body.flex.J_0
         J_1 = body.flex.J_1
+        J_2 = body.flex.J_2
         S_1 = body.flex.S_1
+        S_2 = body.flex.S_2
+        p_1 = body.flex.p_1
+        E = body.flex.E_0
+        R_1 = body.flex.R_1
+        K_1 = body.flex.K_1
+        K_2 = body.flex.K_2
+        T_1 = body.flex.T_1
+        T_2 = body.flex.T_2
+        W_1 = body.flex.W_1
+        W_2 = body.flex.W_2
+
+        # First we compine K_1 and K_2 and assemble Q with T_1, T_2, W_1 and W_2
+        K_1_stack = np.zeros((3*n_md, 3))
+
+        for r in range(n_md):
+            K_1_stack[3*r:3*r+3, :] = K_1[:, 3*r:3*r+3]
+        K = K_1_stack + K_2 @ np.kron(eta.reshape(n_md, 1), np.eye(3))
+        Q_sum = np.zeros((3*n_md, n_md))
+
+        for r in range(n_md):
+            for s in range(n_md):
+
+                T1_sr = T_1[3*s:3*s+3, r:r+1]
+                T2_sr = T_2[3*s:3*s+3, r:r+1]
+                W1_rs = W_1[3*r:3*r+3, s:s+1]
+                W2_sr = W_2[3*s:3*s+3, r:r+1]
+                F1_sr = F_1[3*s:3*s+3, r:r+1]
+
+                Q_sum[3*r:3*r+3, s:s+1] = (
+                T1_sr
+                + T2_sr
+                + W1_rs
+                + W2_sr
+                + 2.0 * F1_sr
+                )
 
         omega = V_r[0:3, :]
 
-        b_eta = np.zeros((n_md, 1))
+        b_eta_0 = np.zeros((n_md, 1))
+        b_eta_1 = np.zeros((n_md, 1))
+        b_omega_0 = sb.skew(omega) @ J_0 @ omega
+        b_v_0 = m * sb.skew(omega) @ sb.skew(omega) @ p_0
 
-        for i in range(n_md):
-            b_eta[i] = - omega.T @ (S_1[:, 3 * i: 3 * i + 3] + J_1[:, 3 * i: 3 * i + 3]) @ omega
+        for r in range(n_md):
+            # zeroth-order term:
+            # -omega.T @ (S1(r) + J1(r)) @ omega
+            S1_r = S_1[:, 3*r:3*r+3]
+            J1_r = J_1[:, 3*r:3*r+3]
 
-           # lower 6 from the same convention as rigid code
+            b_eta_0[r, 0] = -(
+            omega.T @ (S1_r + J1_r) @ omega
+            ).item()
 
-        return np.vstack([b_eta, sb.skew(omega) @ J_0 @ omega, m * sb.skew(omega) @ sb.skew(omega) @ p_0])
+            # first-order term:
+            # -omega.T sum_s [ Q(r,s) eta_dot_s + (S2(r,s)+J2(r,s)) @ omega * eta_s ]
+            inside_sum = np.zeros((3, 1))
+
+            for s in range(n_md):
+                Q_rs = Q_sum[3*r:3*r+3, s:s+1]
+
+                S2_rs = S_2[3*r:3*r+3, 3*s:3*s+3]
+                J2_rs = J_2[3*r:3*r+3, 3*s:3*s+3]
+
+                eta_s = float(eta[s, 0])
+                eta_dot_s = float(eta_dot[s, 0])
+
+                inside_sum += (
+                Q_rs * eta_dot_s
+                + (S2_rs + J2_rs) @ omega * eta_s
+                )
+
+            b_eta_1[r, 0] = -(omega.T @ inside_sum).item()
+
+        b_eta = b_eta_0 + b_eta_1
+
+        b_omega_1 = np.zeros((3, 1))
+        omega_tilde = sb.skew(omega)
+
+        for r in range(n_md):
+            eta_r = float(eta[r, 0])
+            eta_dot_r = float(eta_dot[r, 0])
+
+            J1_r = J_1[:, 3*r:3*r+3]          # J1(r), shape (3,3)
+            K_r  = K[3*r:3*r+3, :]        # K(r),  shape (3,3)
+
+            
+            R1_r = R_1[:, r:r+1]   # R1(r), shape (3,1)
+
+            b_omega_1 += (
+            omega_tilde @ (J1_r + J1_r.T) @ omega * eta_r
+            + (2.0 * J1_r.T + K_r) @ omega * eta_dot_r
+            + omega_tilde @ R1_r * eta_dot_r
+            )
+        b_omega=b_omega_0+b_omega_1
+
+        b_v_1=sb.skew(omega) @ (m*sb.skew(omega) @ p_1 @ eta + 2*E @ eta_dot)
+        b_v=b_v_0+b_v_1
+        return np.vstack([b_eta, b_omega, b_v])
 
     def theta2X(self, theta, joint_type, klOO):
         if joint_type == "revx":
@@ -933,7 +1059,7 @@ class ATBI_Flex:
 
             # Gyroscopic
             #b_fl[k] = np.vstack([np.zeros((n_md, 1)), self.gyroscopic(V_r[k], Mk)])
-            b_fl[k] = self.gyroscopic_BD(body, V_r[k], body.m)
+            b_fl[k] = self.gyroscopic_BD(body, V_r[k], body.m, eta, eta_dot)
 
             V[k] = np.vstack([V_f[k], V_r[k]])
 
@@ -1241,7 +1367,8 @@ class Simulation:
                 t_eval=t_eval,
                 method=self.setting.solver,
                 rtol=1e-8,
-                atol=1e-10
+                atol=1e-10,
+                max_step=0.05
             )
 
             # Checking if integration actually succeeds
@@ -1526,27 +1653,27 @@ if __name__ == "__main__":
     L=1
     klOO1 = np.array([1, 0, 0]).reshape(3, 1)
     klOO2 = np.array([1, 0, 0]).reshape(3, 1)
-    H_type1 = "fixed"
-    H_type2 = "revy"
+    H_type1 = "revy"
+    #H_type2 = "revy"
 
     # n_md_max = (n_nd - 1) * 3
 
-    E, G,c, rho, n_nd, n_md = 1.93e7, 6.902e9,0.2, 1300, 10, 20
+    E, G,c, rho, n_nd, n_md = 1e7, 1e6,0.01, 3000, 5, 20
 
-    w, h = 0.04, 0.04
+    w, h = 0.02, 0.02
 
     j1 = Joint(klOO1, H_type1)
     r1 = Rigid_Properties(rho, w, h)
     f1 = Flex_Properties(
     E, G, c, n_nd, n_md,
     mode_quota={
-        "bending_xy": 2,
-        "bending_xz": 2,
+        "bending_xy": 1,
+        "bending_xz": 1,
         "axial_x": 1
     })
 
-    j2 = Joint(klOO2, H_type2)
-    r2 = Rigid_Properties(rho, w, h)
+    #j2 = Joint(klOO2, H_type2)
+    #r2 = Rigid_Properties(rho, w, h)
     f2 = Flex_Properties(E, G, c, n_nd, n_md,mode_quota={
         "bending_xy": 2,
         "bending_xz": 2,
@@ -1560,15 +1687,15 @@ if __name__ == "__main__":
         return np.array([0, 0, 0, 0, 0, -F0]).reshape(6, 1)
     
     def pulse_force(t, state, body):
-        if t <= 0.25:
+        if  2<= t <= 2.5:
             return np.array([0, 0, 0, 0, 0, 10]).reshape(6, 1)
         else:
             return np.zeros((6, 1))
 
-    b1.add_F_ext(node=b1.flex.n_nd // 2, F_fun=pulse_force)
-
-    F_tip = np.array([0, 0, 0, 100, 0, 0]).reshape(6, 1)
-    b1.add_F_ext(node=b1.flex.n_nd - 1, F_ext=F_tip)
+    #F_tip = np.array([0, 0, 0, 10000, 0, 0]).reshape(6, 1)
+    #b1.add_F_ext(node=b1.flex.n_nd - 1, F_ext=F_tip)
+    #b1.add_F_ext(node=b1.flex.n_nd // 2, F_fun=pulse_force)
+    
     
     #b1.add_F_ext(node=b1.flex.n_nd - 2, F_fun=decaying_tip_force)
 
@@ -1576,7 +1703,7 @@ if __name__ == "__main__":
 
     #F_ext2 = np.array([0, 0, 0, 1e3, 0, 0]).reshape(6, 1)
     #b2.set_F_ext(F_ext2)
-    #b1.set_initial_beta0(2)
+    b1.set_initial_beta0(5)
 
 
     #eta0 = np.vstack([np.array([5]), np.zeros((n_md-1, 1))]).reshape(6, 1)
@@ -1590,7 +1717,7 @@ if __name__ == "__main__":
 
     system = MultibodySystem(bodies)
 
-    tf = 4
+    tf = 0.5
     dt = 0.01
 
     sim = Simulation(system, tf, dt)
@@ -1606,3 +1733,78 @@ if __name__ == "__main__":
 
     # sim.animate_nodes(filename="FlexOORotMissing", save_dir=save_dir)
     sim.animate_nodes()
+    state = sim.get_state()
+    body = sim.system.bodies[0]
+
+    PI_end = body.flex.PI_end
+    ux_hist = []
+    eta_hist=[]
+
+    for s in state:
+        eta = s.Eta[0]
+        eta_hist.append(eta.flatten())
+        u = PI_end@ eta
+        ux_hist.append(u[3, 0])   # x deformation
+
+    ux_hist = np.array(ux_hist)
+    eta_hist = np.array(eta_hist)
+    t = np.asarray(sim.data.time)
+    plt.plot(t,ux_hist)
+    plt.show()
+
+    plt.plot(t,eta_hist)
+    plt.show()
+
+    print(pd.DataFrame(eta_hist))
+
+    
+    """
+    # FFT analysis
+    state = sim.get_state()
+    body = sim.system.bodies[0]
+
+    PI = body.flex.PI
+    mid_node = body.flex.n_nd // 2
+
+    uz_mid_hist = []
+
+    for s in state:
+        eta = s.Eta[0]
+        u_mid = PI[6*mid_node : 6*mid_node + 6, :] @ eta
+        uz_mid_hist.append(u_mid[5, 0])   # z deformation
+
+    uz_mid_hist = np.array(uz_mid_hist)
+
+    from scipy.fft import rfft, rfftfreq
+    t = np.asarray(sim.data.time)
+    y_all = np.asarray(uz_mid_hist)
+
+    # Only use data after t = 3.1 s
+    mask = t >= 3.1
+    t_fft = t[mask]
+    y = y_all[mask]
+
+    # Optional check
+    print(pd.DataFrame({"t": t_fft, "uz_mid": y}))
+
+    # remove static offset after cutting the signal
+    #y = y - np.mean(y)
+
+    # window
+    window = np.hanning(len(y))
+    y_win = y * window
+
+    # time step
+    dt = t_fft[1] - t_fft[0]
+
+    freq = rfftfreq(len(y_win), dt)
+    amp = np.abs(rfft(y_win))
+
+    plt.figure()
+    plt.plot(freq, amp)
+    plt.xlim(0, 20)
+    plt.xlabel("Frequency [Hz]")
+    plt.ylabel("Amplitude")
+    plt.grid(True)
+    plt.show()
+    """
