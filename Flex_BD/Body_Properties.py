@@ -3,7 +3,6 @@ import scipy as sp
 import scipy.linalg as la
 from SOALIB import soalib as sb
 
-
 class Joint:
     # Joint class with H_type, H and klOO
     def __init__(self, klOO, H_type: str):

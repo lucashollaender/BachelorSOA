@@ -8,26 +8,28 @@ import pandas as pd
 
 klOO1 = np.array([1, 0, 0]).reshape(3, 1)
 klOO2 = np.array([1, 0, 0]).reshape(3, 1)
-H_type1 = "revy"
-H_type2 = "revy"
+H_type1 = "revz"
+H_type2 = "fixed"
 
 # n_md_max = (n_nd - 1) * 3
-E, G, c, rho, n_nd, n_md = 230e9, 80e9, 0.02, 7850, 10, 4
+E, G, c, rho, n_nd, n_md = 230e9, 80e9, 0.02, 7850, 10, 20
 
 w, h = 0.04, 0.06
 
 j1 = Joint(klOO1, H_type1)
 r1 = Rigid_Properties(rho, w, h)
-f1 = Flex_Properties(E, G, c, n_nd, n_md)
+f1 = Flex_Properties(E, G, c, n_nd, n_md, mode_selection={
+                     "axial_x": 1})
 
 j2 = Joint(klOO2, H_type2)
 r2 = Rigid_Properties(rho, w, h)
-f2 = Flex_Properties(E, G, c, n_nd, n_md)
+f2 = Flex_Properties(E, G, c, n_nd, n_md, mode_selection={
+                     "torsion_x": 1})
 
 b1 = SOABody(j1, r1, f1)
 b2 = SOABody(j2, r2, f2)
 
-# b1.set_initial_beta0(1)
+b1.set_initial_beta0(1000)
 # b1.set_initial_eta0(np.array([0, 0, 0, 0, 0, 0, 0]).reshape(7, 1))
 
 PIe = b1.flex.PI_end
@@ -54,7 +56,7 @@ M = b1.flex.M_fl
 # eta0 = np.array([0, 0, 0, 0, 10, 0]).reshape(6, 1)
 # b1.set_initial_eta0(eta0)
 
-bodies = [b1, b2]
+bodies = [b1]
 
 system = MultibodySystem(bodies)
 
@@ -73,7 +75,14 @@ sim.IntegrateSystem("Radau")
 save_dir = r"C:\Users\jepp6\OneDrive - Aarhus universitet\Dokumenter\Noter\6. Semester\Bachelor Projekt\BachelorCode\Renders"
 
 # sim.animate_nodes(filename="FlexOORotMissing", save_dir=save_dir)
-sim.animate_nodes()
+#sim.animate_nodes()
+
+state = sim.get_state()
+u = b1.flex.PI_end @ state[-1].Eta[0]
+print(u[3])
+
+
+
 
 """
 print("eigval")
