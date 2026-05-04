@@ -4,7 +4,6 @@ from SOALIB import soalib as sb
 from SystemState import SystemState
 import pandas as pd
 
-
 class ATBI_Flex:
     # ATBI class with bodies
     def __init__(self, bodies):
@@ -12,77 +11,12 @@ class ATBI_Flex:
         self.bodies = bodies
         self.n = len(bodies)
 
-    def coriolis(self, V, beta, H):
-        deltaV = H.T @ beta
-        return sb.skew6(V) @ deltaV - sb.bar6(deltaV) @ deltaV
-
-    def coriolis_BD(self, V_k, V_p, beta, H, klOO, R3):
-        deltaV = H.T @ beta
-
-        a01 = sb.skew(V_k[0:3]) @ deltaV[0:3]
-        a02 = sb.skew(R3.T @ V_p[0:3]) @ sb.skew(R3.T @ V_p[0:3]) @ klOO
-
-        return np.vstack([a01, a02])
-
-    def gyroscopic(self, V, M):
-        return sb.bar6(V) @ M @ V
-
-    def gyroscopic_BD(self, body, V_r, m):
-        n_md = body.flex.n_md
-
-        # modal integrals
-        p_0 = body.flex.p_0
-        F_1 = body.flex.F_1
-        J_0 = body.flex.J_0
-        J_1 = body.flex.J_1
-        S_1 = body.flex.S_1
-
-        omega = V_r[0:3, :]
-
-        b_eta = np.zeros((n_md, 1))
-
-        for i in range(n_md):
-            b_eta[i] = - omega.T @ (S_1[:, 3 * i: 3 * i + 3] +
-                                    J_1[:, 3 * i: 3 * i + 3]) @ omega
-
-        return np.vstack([b_eta, sb.skew(omega) @ J_0 @ omega, m * sb.skew(omega) @ sb.skew(omega) @ p_0])
-
-    def theta2X(self, theta, joint_type, klOO):
-        if joint_type == "revx":
-            ang = theta.item()
-            q = np.array([[np.sin(ang/2)], [0], [0], [np.cos(ang/2)]])
-            return np.vstack((q, klOO)), q
-
-        elif joint_type == "revy":
-            ang = theta.item()
-            q = np.array([[0], [np.sin(ang/2)], [0], [np.cos(ang/2)]])
-            return np.vstack((q, klOO)), q
-
-        elif joint_type == "revz":
-            ang = theta.item()
-            q = np.array([[0], [0], [np.sin(ang/2)], [np.cos(ang/2)]])
-            q = q / np.linalg.norm(q)
-            # print(ang)
-            return np.vstack((q, klOO)), q
-
-        elif joint_type == "spherical":
-            q = theta.reshape(4, 1)
-            q = q / np.linalg.norm(q)
-            return np.vstack((q, klOO)), q
-
-        elif joint_type == "free":
-            q = theta[0:4].reshape(4, 1)
-            v = theta[4:7].reshape(3, 1)
-            return np.vstack((q, klOO)), q
-
-        elif joint_type == "fixed":
-            q = np.array([[0], [0], [0], [1]])
-            return np.vstack((q, klOO)), q
-
     def scatter_kinematics(self, state: SystemState):
+        # Step 1 of ATBI (scatter sweep): Takes state and returns velocities, pose, Coriolis- and gyroscopic
+        # terms
 
         # Number of bodies
-        n = len(self.bodies)
+        n = self.n
 
         # Set up lists
         X = [None] * n
@@ -96,6 +30,7 @@ class ATBI_Flex:
         for k in reversed(range(n)):
             # Parameters of the body
             body = self.bodies[k]
+            joint = body.joint
             theta = state.Theta[k]
             beta = state.Beta[k]
             eta = state.Eta[k]
@@ -106,17 +41,19 @@ class ATBI_Flex:
             n_md = body.flex.n_md
 
             # Build X
-            X[k], q = self.theta2X(theta, body.joint.type, body.joint.klOO)
+            X[k], q = joint.get_theta2X(theta)
 
             # Build A: NB! Typo in text?!?!
             R3 = sb.q2R(q.flatten(), 3)
             A_fl[k] = sb.get_A(PI, X[k][4:7])
 
             if k == n - 1:
+                # Base body
                 V_f[k] = eta_dot
                 V_r[k] = H.T @ beta
 
-                a_fl[k] = self.coriolis_BD(V_r[k], np.zeros(
+                # Coriolis Acceleration (base)
+                a_fl[k] = body.coriolis_BD(V_r[k], np.zeros(
                     (6, 1)), beta, H, np.zeros((3, 1)), R3)
             else:
                 R6 = sb.q2R(q.flatten(), 6)
@@ -125,26 +62,27 @@ class ATBI_Flex:
                 V_f[k] = eta_dot
                 V_r[k] = R6.T @ A_fl[k+1].T @ V[k+1] + H.T @ beta
 
-                a_fl[k] = self.coriolis_BD(
+                # Coriolis Acceleration
+                a_fl[k] = body.coriolis_BD(
                     V_r[k], V_r[k+1], beta, H, R3.T @ X[k+1][4:7], R3)
 
-            # Coriolis
-            # a_fl[k] = np.vstack([np.zeros((n_md, 1)), self.coriolis(V_r[k], beta, H)])
-
-            # Gyroscopic
-            # b_fl[k] = np.vstack([np.zeros((n_md, 1)), self.gyroscopic(V_r[k], Mk)])
-            b_fl[k] = self.gyroscopic_BD(body, V_r[k], body.m)
+            # Gyroscopic Force
+            b_fl[k] = body.gyroscopic_BD(body, V_r[k], body.m)
+            
+            # Rigid formulations
+            # a_fl[k] = body.coriolis(V_r[k], beta, H, n_md)
+            # b_fl[k] = np.vstack([np.zeros((n_md, 1)), body.gyroscopic(V_r[k], Mk)])
 
             V[k] = np.vstack([V_f[k], V_r[k]])
 
         return X, V, a_fl, b_fl
 
     def gather_ATBI(self, state: SystemState, a_fl, b_fl, X, t):
-        # Step 3 of ATBI (gather sweep): Takes generalized forces, Coriolis-, gyroscopic
+        # Step 2 of ATBI (gather sweep): Takes generalized forces, Coriolis-, gyroscopic
         # terms, X-vector and system configuration and returns G and nu parameters
 
         # Number of bodies
-        n = len(self.bodies)
+        n = self.n
 
         # Setup lists
         P_pr_plus = [None] * n
@@ -163,6 +101,8 @@ class ATBI_Flex:
             H_B = body.joint.H
             F_ext = body.force.F_ext
             tau_pr = body.force.tau
+            theta = state.Theta[k]
+            beta = state.Beta[k]
             eta = state.Eta[k]
             eta_dot = state.Eta_dot[k]
             M_fl = body.flex.M_fl
@@ -173,25 +113,17 @@ class ATBI_Flex:
             H_M_fl = np.hstack([np.eye(n_md, n_md), np.zeros((n_md, 6))])
             klOO = X[k][4:7]
 
-            # External force
-            # F_ext_term = np.zeros((b_fl[k].shape[0], 1))
-            # F_ext_term = np.exp(- 5 * t) * np.vstack([PI.T @ F_ext, sb.phi(klOO) @ F_ext])
-
-            F_ext_term = np.vstack([PI.T @ F_ext, sb.phi(klOO) @ F_ext])
-
-            """
-            if t <= 0.25:
-                F_ext_term = np.vstack([PI.T @ F_ext, sb.phi(klOO) @ F_ext])
-            """
+            # Applied loads and springs
+            F_ext_term = body.get_F_ext_term(state, t)
+            tau_TS_term = body.get_TS_term(theta, beta)
 
             if k == 0:
-                # Gather loop for k = 0 (Base Case)
-                # 13.6
+                # Gather loop for k = 0 (Tip)
                 Gamma_fl = np.zeros((0, 6))
                 P_fl = M_fl
                 D_m[k] = H_M_fl @ P_fl @ H_M_fl.T
                 mu_fl = P_fl[-6:, :] @ H_M_fl.T
-                D_m_inv = body.get_D_m_inv(Gamma_fl, 0)
+                D_m_inv = body.get_D_m_inv(Gamma_fl, "tip")
                 g_fl[k] = mu_fl @ D_m_inv
                 P_pr[k] = P_fl[-6:, -6:] - g_fl[k] @ mu_fl.T
                 D_pr[k] = H_B @ P_pr[k] @ H_B.T
@@ -199,19 +131,17 @@ class ATBI_Flex:
                 tau_pr_bar = np.eye(6, 6) - G_pr[k] @ H_B
                 P_pr_plus[k] = tau_pr_bar @ P_pr[k]
 
-                # 13.7
                 z = b_fl[k] + K_fl @ np.vstack([eta, np.zeros((6, 1))]) - \
                     F_ext_term + C_fl @ np.vstack([eta_dot, np.zeros((6, 1))])
                 eps_m = - z[0:n_md]  # tau_m (assumed to be zero): dim(n_md, 1)
                 nu_m[k] = D_m_inv @ eps_m
 
                 z_pr = z[-6:] + g_fl[k] @ eps_m + P_pr[k] @ a_fl[k][-6:]
-                eps_pr = tau_pr - H_B @ z_pr
+                eps_pr = tau_pr - H_B @ z_pr + tau_TS_term
                 nu_pr[k] = la.solve(D_pr[k], eps_pr)
                 z_pr_plus[k] = z_pr + G_pr[k] @ eps_pr
 
             else:
-                # 13.6
                 # Unpacking X-vector
                 q = X[k-1][0:4]
 
@@ -220,12 +150,13 @@ class ATBI_Flex:
 
                 A_fl = sb.get_A(PI, klOO)
 
-                # Gather loop for k > 0
+                # Gather loop for k > 0 (Not tip)
                 Gamma_fl = R6 @ P_pr_plus[k-1] @ R6.T  # ?!?!?!?
                 P_fl = A_fl @ Gamma_fl @ A_fl.T + M_fl
                 D_m[k] = H_M_fl @ P_fl @ H_M_fl.T
                 mu_fl = P_fl[-6:, :] @ H_M_fl.T
-                D_m_inv = body.get_D_m_inv(Gamma_fl, 1)
+                #D_m_inv = la.solve(D_m[k], np.eye(n_md), assume_a="sym")
+                D_m_inv = body.get_D_m_inv(Gamma_fl, "not_tip")
                 g_fl[k] = mu_fl @ D_m_inv
                 P_pr[k] = P_fl[-6:, -6:] - g_fl[k] @ mu_fl.T
                 D_pr[k] = H_B @ P_pr[k] @ H_B.T
@@ -233,25 +164,23 @@ class ATBI_Flex:
                 tau_pr_bar = np.eye(6, 6) - G_pr[k] @ H_B
                 P_pr_plus[k] = tau_pr_bar @ P_pr[k]
 
-                # 13.7
                 z = A_fl @ R6 @ z_pr_plus[k-1] + b_fl[k] + K_fl @ np.vstack([eta, np.zeros(
                     (6, 1))]) - F_ext_term + C_fl @ np.vstack([eta_dot, np.zeros((6, 1))])
                 eps_m = - z[0:n_md]  # tau_m (assumed to be zero): dim(n_md, 1)
                 nu_m[k] = D_m_inv @ eps_m
 
                 z_pr = z[-6:] + g_fl[k] @ eps_m + P_pr[k] @ a_fl[k][-6:]
-                eps_pr = tau_pr - H_B @ z_pr
+                eps_pr = tau_pr - H_B @ z_pr + tau_TS_term
                 nu_pr[k] = la.solve(D_pr[k], eps_pr)
                 z_pr_plus[k] = z_pr + G_pr[k] @ eps_pr
 
         return G_pr, nu_pr, nu_m, g_fl
 
     def scatter_ATBI(self, a_fl, X, G_pr, nu_pr, nu_m, g_fl):
-        # Step 4 of ATBI (second scatter sweep): Takes Coriolis term, X-vector, G,
-        # nu and hinge map, H and returns generalized acceleration, gamma
+        # Step 3 of ATBI (second scatter sweep): Takes found parameters in gather sweep and returns generalized acceleration and eta_ddot
 
         # Number of bodies
-        n = len(self.bodies)
+        n = self.n
 
         # Setup of list
         alpha_fl = [None] * n

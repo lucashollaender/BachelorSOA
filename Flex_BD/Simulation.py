@@ -11,11 +11,13 @@ from SOALIB import soalib as sb
 import pandas as pd
 from tqdm import tqdm
 
+# Increase limit to 100 MB (default is 20)
+plt.rcParams['animation.embed_limit'] = 1000
 
 class Simulation:
     class Data:
         def __init__(self):
-            self.time, self.state, self.X_list, self.V_list, self.a_list, self.b_list, self.alpha_list, self.pos = [
+            self.time, self.state, self.X_list, self.V_fl_list, self.a_fl_list, self.b_fl_list, self.alpha_fl_list, self.pos = [
             ], [], [], [], [], [], [], []
 
     class Setting:
@@ -24,6 +26,8 @@ class Simulation:
             self.camera_ver = 20
             self.camera_hor = 0
             self.solver = "RK4"
+            self.atol = 1e-3
+            self.rtol = 1e-6
 
     def __init__(self, system: MultibodySystem, tf, dt):
         self.system = system
@@ -32,9 +36,6 @@ class Simulation:
         self.tf = tf
         self.dt = dt
         self.setting.ani_dt = dt
-
-        # Increase limit to 100 MB (default is 20)
-        plt.rcParams['animation.embed_limit'] = 1000
 
     def IntegrateSystem(self, solver="RK4"):
         self.setting.solver = solver
@@ -76,8 +77,8 @@ class Simulation:
                 y0=self.system.S0,
                 t_eval=t_eval,
                 method=self.setting.solver,
-                rtol=1e-4,
-                atol=1e-6
+                atol=self.setting.atol,
+                rtol=self.setting.rtol
             )
 
             # Checking if integration actually succeeds
@@ -110,20 +111,20 @@ class Simulation:
                 states[j].reshape(-1, 1), [b.joint for b in self.system.bodies], [b.flex for b in self.system.bodies])
 
             # Kinematic scatter loop to find X
-            X, V, a_fl, b_fl = self.system.ATBI.scatter_kinematics(
+            X, V_fl, a_fl, b_fl = self.system.ATBI.scatter_kinematics(
                 current_state)
             G_pr, nu_pr, nu_m, g_fl = self.system.ATBI.gather_ATBI(
                 current_state, a_fl, b_fl, X, self.data.time[i])
-            _, _, alpha = self.system.ATBI.scatter_ATBI(
+            _, _, alpha_fl = self.system.ATBI.scatter_ATBI(
                 a_fl, X, G_pr, nu_pr, nu_m, g_fl)
 
             # Add to list
             self.data.state.append(current_state)
             self.data.X_list.append(X)
-            self.data.V_list.append(V)
-            self.data.a_list.append(a_fl)
-            self.data.b_list.append(b_fl)
-            self.data.alpha_list.append(alpha)
+            self.data.V_fl_list.append(V_fl)
+            self.data.a_fl_list.append(a_fl)
+            self.data.b_fl_list.append(b_fl)
+            self.data.alpha_fl_list.append(alpha_fl)
 
     # Call functions for data
     def get_state(self):
@@ -132,17 +133,17 @@ class Simulation:
     def get_X(self):
         return self.data.X_list
 
-    def get_V(self):
-        return self.data.V_list
+    def get_V_fl(self):
+        return self.data.V_fl_list
 
-    def get_a(self):
-        return self.data.a_list
+    def get_a_fl(self):
+        return self.data.a_fl_list
 
-    def get_b(self):
-        return self.data.b_list
+    def get_b_fl(self):
+        return self.data.b_fl_list
 
-    def get_alpha(self):
-        return self.data.alpha_list
+    def get_alpha_fl(self):
+        return self.data.alpha_fl_list
 
     # Settings
     def set_camera_speed(self, x):
@@ -156,6 +157,10 @@ class Simulation:
 
     def set_ani_dt(self, x):
         self.setting.ani_dt = x
+
+    def set_tol(self, atol, rtol):
+        self.setting.atol = atol
+        self.setting.rtol = rtol
 
     def nNodalPos(self):
         t = self.data.time
