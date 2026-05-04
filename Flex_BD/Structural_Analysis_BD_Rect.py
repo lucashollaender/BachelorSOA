@@ -329,7 +329,7 @@ class Structural_Analysis_BD_Rect:
                 J_1_sum[:, 3 * r: 3 * r + 3] += m_nd[i] * \
                     sb.skew(gamma_r) @ (klkO_skew + p_skew)
                 S_1_sum[:, 3 * r: 3 * r + 3] += sb.skew(
-                    m_nd[i] * p_skew @ gamma_r) @ klkO_skew - J[i] @ sb.skew(lambda_r)
+                    m_nd[i] * p_skew @ lambda_r) @ klkO_skew - J[i] @ sb.skew(lambda_r)
                 for s in range(n_md):
                     gamma_s = gamma[i * 3: i*3 + 3, s]
                     lambda_s = lambda_[i * 3: i * 3 + 3, s]
