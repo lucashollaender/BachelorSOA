@@ -13,6 +13,13 @@ class MultibodySystem:
         Eta_0 = [b.initialcondition.eta0 for b in bodies]
         Eta_dot_0 = [b.initialcondition.eta_dot0 for b in bodies]
         self.S0 = SystemState(Theta_0, Beta_0, Eta_0, Eta_dot_0).pack()
+        self.ATBI.g = np.array([0, 0, 0, 0, 0, 9.81]).reshape(6, 1)
+
+    def set_gravity(self, gravOnOff):
+        if gravOnOff:
+            self.ATBI.g = np.array([0, 0, 0, 0, 0, 9.81]).reshape(6, 1)
+        else:
+            self.ATBI.g = np.zeros((6, 1))
 
     def EOM(self, t, S):
         state = SystemState.unpack(

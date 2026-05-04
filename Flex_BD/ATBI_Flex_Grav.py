@@ -11,6 +11,9 @@ class ATBI_Flex:
         self.bodies = bodies
         self.n = len(bodies)
 
+        # Spatial gravity
+        self.g = np.array([0, 0, 0, 0, 0, 9.81]).reshape(6, 1)
+
     def scatter_kinematics(self, state: SystemState):
         # Step 1 of ATBI (scatter sweep): Takes state and returns velocities, pose, Coriolis- and gyroscopic
         # terms
@@ -70,8 +73,8 @@ class ATBI_Flex:
             b_fl[k] = body.gyroscopic_BD(body, V_r[k], body.m)
             
             # Rigid formulations
-            # a_fl[k] = body.coriolis(V_r[k], beta, H, n_md)
-            # b_fl[k] = np.vstack([np.zeros((n_md, 1)), body.gyroscopic(V_r[k], Mk)])
+            #a_fl[k] = body.coriolis(V_r[k], beta, H, n_md)
+            #b_fl[k] = np.vstack([np.zeros((n_md, 1)), body.gyroscopic(V_r[k], Mk)])
 
             V[k] = np.vstack([V_f[k], V_r[k]])
 
@@ -188,9 +191,6 @@ class ATBI_Flex:
         eta_ddot = [None] * n
         A_fl = [None] * n
 
-        # Spatial gravity
-        g = np.array([0, 0, 0, 0, 0, 9.81]).reshape(6, 1)
-
         # Spatial gravity rotation setup
         Ri = [None] * (n + 1)
         Ri[-1] = np.eye(6)
@@ -214,7 +214,7 @@ class ATBI_Flex:
             A_fl[k] = sb.get_A(PI, X[k][4:7])
 
             if k == n - 1:
-                alpha_base = R6.T @ g
+                alpha_base = R6.T @ self.g
                 theta_ddot[k] = nu_pr[k] - G_pr[k].T @ alpha_base
                 alpha_pr = alpha_base + H_B.T @ theta_ddot[k] + a_fl[k][-6:]
                 eta_ddot[k] = nu_m[k] - g_fl[k].T @ alpha_pr
