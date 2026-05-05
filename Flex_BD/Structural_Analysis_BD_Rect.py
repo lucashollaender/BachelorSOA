@@ -342,7 +342,7 @@ class Structural_Analysis_BD_Rect:
         self.p_0 = 1/m * p_0_sum
         self.p_1 = 1/m * p_1_sum
         self.J_0 = J_0_sum
-        self.J_1 = - J_1_sum
+        self.J_1 = J_1_sum
         #self.J_2 = - J_2_sum
         self.F_0 = F_0_sum
         self.F_1 = F_1_sum

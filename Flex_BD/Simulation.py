@@ -28,6 +28,8 @@ class Simulation:
             self.solver = "RK4"
             self.atol = 1e-3
             self.rtol = 1e-6
+            self.show_com_frames = False
+            self.frame_scale = 0.5
 
     def __init__(self, system: MultibodySystem, tf, dt):
         self.system = system
@@ -161,6 +163,64 @@ class Simulation:
     def set_tol(self, atol, rtol):
         self.setting.atol = atol
         self.setting.rtol = rtol
+    
+    # COM Coordinate Frames
+    def show_COM_frames(self, scale=0.5):
+        self.setting.show_com_frames = True
+        self.setting.frame_scale = scale
+
+    def get_com_frame_data(self, frame_idx):
+        state = self.data.state[frame_idx]
+        X = self.data.X_list[frame_idx]
+        n = len(self.system.bodies)
+
+        lines_data = []
+        scale = self.setting.frame_scale
+
+        R_i = np.eye(3)
+        last_end = np.zeros((3, 1))
+
+        # Loop backwards like in nNodalPos
+        for k in range(n - 1, -1, -1):
+            body = self.system.bodies[k]
+            eta = state.Eta[k]
+            n_nd = body.flex.n_nd
+            PI = body.flex.PI
+            klOO_nd = body.flex.klOO_nd
+
+            # Base rotation of the body
+            q = X[k][0:4]
+            R_i = R_i @ sb.q2R(q.flatten(), 3)
+
+            # Center of mass is represented by the middle node
+            mid_idx = n_nd // 2
+
+            # 1. Global Position of the CoM node
+            pos_und = klOO_nd[mid_idx]
+            u_mid = PI[mid_idx*6+3 : mid_idx*6+6, :] @ eta
+            p_glob = last_end + R_i @ (pos_und + u_mid)
+
+            # 2. Global Rotation of the CoM node
+            R_mid_vec = PI[mid_idx*6 : mid_idx*6+3, :] @ eta
+            R_mid = Rotation.from_rotvec(R_mid_vec.flatten()).as_matrix()
+            R_glob = R_i @ R_mid
+
+            # 3. Calculate Endpoints for X (Red), Y (Green), Z (Blue)
+            x_end = p_glob + R_glob @ np.array([[scale], [0], [0]])
+            y_end = p_glob + R_glob @ np.array([[0], [scale], [0]])
+            z_end = p_glob + R_glob @ np.array([[0], [0], [scale]])
+
+            lines_data.append((p_glob, x_end, y_end, z_end))
+
+            # Advance to the tip of this body to set up the next body's base
+            u_last = PI[(n_nd-1)*6+3 : (n_nd-1)*6+6, :] @ eta
+            last_end = last_end + R_i @ (klOO_nd[-1] + u_last)
+
+            R_n_vec = PI[-6:-3, :] @ eta
+            R_n = Rotation.from_rotvec(R_n_vec.flatten()).as_matrix()
+            R_i = R_i @ R_n
+
+        return lines_data
 
     def nNodalPos(self):
         t = self.data.time
@@ -284,6 +344,16 @@ class Simulation:
         # Scatter plot for the nodes
         node_dots, = ax.plot([], [], [], 'ko', markersize=4)
 
+        # COM Coordinate Frames
+        com_lines = []
+        if self.setting.show_com_frames:
+            for i in range(n_bodies):
+                # RGB lines for X, Y, Z axes
+                line_x, = ax.plot([], [], [], 'r-', lw=2)
+                line_y, = ax.plot([], [], [], 'g-', lw=2)
+                line_z, = ax.plot([], [], [], 'b-', lw=2)
+                com_lines.extend([line_x, line_y, line_z])
+
         # Plot origin for reference
         ax.plot([0], [0], [0], 'o', color='gray', markersize=6)
 
@@ -321,6 +391,22 @@ class Simulation:
             # Update timer
             time_text.set_text(f'Time: {t[frame_idx]:.2f} s')
 
+            # COM Coordinate Frames
+            if self.setting.show_com_frames:
+                frame_data = self.get_com_frame_data(frame_idx)
+                for b_idx, (p_glob, x_end, y_end, z_end) in enumerate(frame_data):
+                    # X Axis (Red)
+                    com_lines[b_idx*3].set_data([p_glob[0,0], x_end[0,0]], [p_glob[1,0], x_end[1,0]])
+                    com_lines[b_idx*3].set_3d_properties([p_glob[2,0], x_end[2,0]])
+                    
+                    # Y Axis (Green)
+                    com_lines[b_idx*3+1].set_data([p_glob[0,0], y_end[0,0]], [p_glob[1,0], y_end[1,0]])
+                    com_lines[b_idx*3+1].set_3d_properties([p_glob[2,0], y_end[2,0]])
+                    
+                    # Z Axis (Blue)
+                    com_lines[b_idx*3+2].set_data([p_glob[0,0], z_end[0,0]], [p_glob[1,0], z_end[1,0]])
+                    com_lines[b_idx*3+2].set_3d_properties([p_glob[2,0], z_end[2,0]])
+
             # Camera control
             if self.setting.camera_speed == 0 and frame_idx == 0 and camera_initialized == False:
                 ax.view_init(elev=self.setting.camera_ver,
@@ -330,7 +416,7 @@ class Simulation:
                 ax.view_init(elev=self.setting.camera_ver,
                              azim=self.setting.camera_hor + frame_idx * self.setting.camera_speed * 40 * dt)
 
-            return (*lines, node_dots, time_text)
+            return (*lines, node_dots, time_text, *com_lines)
 
         # Create Animation
         anim = FuncAnimation(

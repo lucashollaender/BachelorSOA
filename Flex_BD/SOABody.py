@@ -167,6 +167,9 @@ class SOABody:
             self.eta0 = np.zeros((flex.n_md, 1))
             self.eta_dot0 = np.zeros((flex.n_md, 1))
 
+    def set_initial_theta0(self, theta0):
+        self.initialcondition.beta0 = theta0
+    
     def set_initial_beta0(self, beta0):
         self.initialcondition.beta0 = beta0
 
