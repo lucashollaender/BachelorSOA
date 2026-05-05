@@ -51,7 +51,7 @@ H_type1 = "revy"
 H_type2 = "revy"
 
 # n_md_max = (n_nd - 1) * 3
-E, G, c, rho, n_nd, n_md = 230e9, 80e9, 0.02, 7850, 10, 6
+E, G, c, rho, n_nd, n_md = 230e9, 80e9, 0.02, 7801, 10, 6
 
 w, h = 0.04, 0.04
 
