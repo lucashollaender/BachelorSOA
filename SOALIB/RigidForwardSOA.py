@@ -379,7 +379,8 @@ class Simulation:
             t_eval=t_eval,
             method="RK45",
             rtol=1e-8,
-            atol=1e-10
+            atol=1e-10,
+            max_step=self.dt
         )
 
         print("Integration successful!")
