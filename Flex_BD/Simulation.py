@@ -30,7 +30,7 @@ class Simulation:
             self.rtol = 1e-6
             self.show_com_frames = False
             self.frame_scale = 0.5
-            self.max_step = None
+            self.max_step = np.inf
 
     def __init__(self, system: MultibodySystem, tf, dt):
         self.system = system

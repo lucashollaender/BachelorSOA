@@ -42,9 +42,11 @@ dt = 0.01
 
 # Simulate
 sim = Simulation(system, tf, dt)
-sim.IntegrateSystem("Radau")
 sim.set_camera_speed(0)
 sim.set_tol(1e-10, 1e-12)
+sim.set_max_step(dt)
+sim.IntegrateSystem("Radau")
+
 
 sim.animate_nodes()
 
