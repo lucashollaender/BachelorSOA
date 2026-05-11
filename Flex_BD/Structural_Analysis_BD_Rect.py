@@ -82,7 +82,23 @@ class Structural_Analysis_BD_Rect:
 
         k_perm = k[np.ix_(perm, perm)]
 
-        return k_perm
+        # Geometric stiffness model for assumed constant axial load
+        k_geo = np.zeros((12, 12))
+        if self.constant_axial_load:
+            P = self.F_axial
+            
+            k_sig = P / (30 * L) * np.array([[36, 3*L, -36, 3*L],
+                                            [3*L, 4*L**2, -3*L, -L**2],
+                                            [-36, -3*L, 36, -3*L],
+                                            [3*L, -L**2, -3*L, 4*L**2]])
+            
+            dof_xy = [4, 2, 10, 8]
+            dof_xz = [5, 1, 11, 7]
+
+            k_geo[np.ix_(dof_xy, dof_xy)] += k_sig
+            k_geo[np.ix_(dof_xz, dof_xz)] += k_sig
+
+        return k_perm + k_geo
 
     def get_K_st(self):
 
@@ -400,6 +416,8 @@ class Structural_Analysis_BD_Rect:
         self.n_elem = self.n_nd - 1
         self.L_elem = self.L / self.n_elem
         self.m_e = self.rho * self.A * self.L_elem
+        self.constant_axial_load = flex.constant_axial_load
+        self.F_axial = flex.F_axial
 
         # Mode selection
         self.n_md_compute = flex.n_md

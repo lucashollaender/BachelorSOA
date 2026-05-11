@@ -81,6 +81,10 @@ class SOABody:
 
         for load in self.force.F_ext:
             node = load["node"]
+
+            if node < 0:
+                node = self.flex.n_nd + node
+
             F_j = load["fun"](t, state).reshape(6, 1)
 
             # Mode-shape block for selected node
@@ -111,6 +115,19 @@ class SOABody:
                 return np.zeros((3, 1)) # Not implemented for spherical joint
         elif joint_type == "fixed":
                 return np.zeros((0, 1))
+    
+    def set_impulse_force(self, ts, dt, F_impulse, node=-1):        
+        # Define the time-dependent function
+        def impulse_fun(t, state):
+            if ts <= t <= (ts + dt):
+                # If you want the exponential decay you had previously, you could do:
+                # return np.exp(-5 * (t - ts)) * F_vec
+                return F_impulse
+            else:
+                return np.zeros((6, 1))
+                
+        # Pass the function to the existing external force handler
+        self.set_F_ext(node=node, F_fun=impulse_fun)
 
     # ----- Coriolis acceleration and gyroscopic force -----
     # Rigid SOA:

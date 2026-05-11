@@ -98,7 +98,13 @@ class Flex_Properties:
         self.n_nd = n_nd
         self.n_md = n_md
         self.n_elem = self.n_nd - 1
+        self.F_axial = np.zeros((6, 1))
+        self.constant_axial_load = False
 
         # Mode selection
         self.mode_selection = mode_selection
         self.modes = []
+    
+    def set_constant_axial_load(self, F_axial):
+        self.F_axial = F_axial
+        self.constant_axial_load = True
