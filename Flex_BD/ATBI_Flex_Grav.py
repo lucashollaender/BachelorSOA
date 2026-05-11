@@ -120,6 +120,13 @@ class ATBI_Flex:
             F_ext_term = body.get_F_ext_term(state, t)
             tau_TS_term = body.get_TS_term(theta, beta)
 
+            # Impulsetest
+            F_1 = np.zeros((6, 1))
+            if t > 1 and t < 1.25:
+                F_1 = np.array([0, 0, 0, 0, 0, 1000]).reshape(6, 1)
+            F_impulse = np.exp(- 5 * (t - 1)) * np.vstack([PI.T @ F_1, sb.phi(klOO*0.5) @ F_1])
+            # -------
+
             if k == 0:
                 # Gather loop for k = 0 (Tip)
                 Gamma_fl = np.zeros((0, 6))
@@ -135,7 +142,7 @@ class ATBI_Flex:
                 P_pr_plus[k] = tau_pr_bar @ P_pr[k]
 
                 z = b_fl[k] + K_fl @ np.vstack([eta, np.zeros((6, 1))]) - \
-                    F_ext_term + C_fl @ np.vstack([eta_dot, np.zeros((6, 1))])
+                    F_ext_term + C_fl @ np.vstack([eta_dot, np.zeros((6, 1))]) - F_impulse
                 eps_m = - z[0:n_md]  # tau_m (assumed to be zero): dim(n_md, 1)
                 nu_m[k] = D_m_inv @ eps_m
 
