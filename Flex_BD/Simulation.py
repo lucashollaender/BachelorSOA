@@ -30,6 +30,7 @@ class Simulation:
             self.rtol = 1e-6
             self.show_com_frames = False
             self.frame_scale = 0.5
+            self.max_step = None
 
     def __init__(self, system: MultibodySystem, tf, dt):
         self.system = system
@@ -80,7 +81,8 @@ class Simulation:
                 t_eval=t_eval,
                 method=self.setting.solver,
                 atol=self.setting.atol,
-                rtol=self.setting.rtol
+                rtol=self.setting.rtol,
+                max_step=self.setting.max_step
             )
 
             # Checking if integration actually succeeds
@@ -163,6 +165,9 @@ class Simulation:
     def set_tol(self, atol, rtol):
         self.setting.atol = atol
         self.setting.rtol = rtol
+    
+    def set_max_step(self, max_step):
+        self.setting.max_step = max_step
     
     # COM Coordinate Frames
     def show_COM_frames(self, scale=0.5):

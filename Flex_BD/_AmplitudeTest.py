@@ -21,17 +21,19 @@ f1 = Flex_Properties(E, G, c, n_nd, n_md, mode_selection={
                      "bending_xz": 1,
                      "axial_x": 1})
 
+F_axial = 1e5
+f1.set_constant_axial_load(F_axial)
+
 b1 = SOABody(j1, r1, f1)
 
 K = b1.flex.K_fl
 M = b1.flex.M_fl
 
-F_ext1 = np.array([0, 0, 0, 1000000000, 0, 0]).reshape(6, 1)
-b1.set_F_ext(node=10, F_ext=F_ext1)
+F_ext1 = np.array([0, 0, 0, F_axial, 0, 0]).reshape(6, 1)
+b1.set_F_ext(node=-1, F_ext=F_ext1)
 
-# eta0 = np.vstack([np.array([5]), np.zeros((n_md-1, 1))]).reshape(6, 1)
-# eta0 = np.array([0, 0, 0, 0, 10, 0]).reshape(6, 1)
-# b1.set_initial_eta0(eta0)
+F_impulse = np.array([0, 0, 0, 0, 0, 1e5])
+b1.set_impulse_force(ts=1, dt=0.25, F_impulse=F_impulse, node=-1)
 
 bodies = [b1]
 
@@ -48,6 +50,7 @@ sim.set_camera_hor(90)
 sim.set_camera_speed(0)
 sim.set_ani_dt(0.01)
 sim.show_COM_frames(0.2)
+sim.set_max_step(dt)
 
 sim.IntegrateSystem("Radau")
 
