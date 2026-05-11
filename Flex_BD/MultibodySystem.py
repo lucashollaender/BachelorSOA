@@ -24,6 +24,11 @@ class MultibodySystem:
     def EOM(self, t, S):
         state = SystemState.unpack(
             S.reshape(-1, 1), [b.joint for b in self.bodies], [b.flex for b in self.bodies])
+        
+        for k, body in enumerate(self.bodies):
+            if body.joint.type in ["spherical"]:
+                q = state.Theta[k][0:4]
+                state.Theta[k][0:4] = q / np.linalg.norm(q)
             
         X, V, a_fl, b_fl = self.ATBI.scatter_kinematics(state)
         G_pr, nu_pr, nu_m, g_fl = self.ATBI.gather_ATBI(

@@ -74,7 +74,7 @@ class ATBI_Flex:
             
             # Rigid formulations
             #a_fl[k] = body.coriolis(V_r[k], beta, H, n_md)
-            #b_fl[k] = np.vstack([np.zeros((n_md, 1)), body.gyroscopic(V_r[k], Mk)])
+            #b_fl[k] = np.vstack([np.zeros((n_md, 1)), body.gyroscopic(V_r[k], body.flex.M_fl[-6:, -6:])])
 
             V[k] = np.vstack([V_f[k], V_r[k]])
 
