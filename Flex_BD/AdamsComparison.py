@@ -8,8 +8,8 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import os
 
-ADAMS_HINGE1_FILE = "Hinge1_ang_acc.tab"
-ADAMS_HINGE2_FILE = "Hinge2_ang_acc.tab"
+ADAMS_HINGE1_FILE = "Hinge1_ang_acc_alu.tab"
+ADAMS_HINGE2_FILE = "Hinge2_ang_acc_alu.tab"
 
 
 def read_adams_tab(filename):
