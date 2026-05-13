@@ -18,7 +18,7 @@ n_nd = 10
 n_md = 10
 
 w = 0.04
-h = 0.04   # non-square section helps separate bending pairs
+h = 0.03   # non-square section helps separate bending pairs
 
 
 # Properties

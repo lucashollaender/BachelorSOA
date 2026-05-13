@@ -82,7 +82,23 @@ class Structural_Analysis_BD_Rect:
 
         k_perm = k[np.ix_(perm, perm)]
 
-        return k_perm
+        # Geometric stiffness model for assumed constant axial load
+        k_geo = np.zeros((12, 12))
+        if self.constant_axial_load:
+            P = self.F_axial
+            
+            k_sig = P / (30 * L) * np.array([[36, 3*L, -36, 3*L],
+                                            [3*L, 4*L**2, -3*L, -L**2],
+                                            [-36, -3*L, 36, -3*L],
+                                            [3*L, -L**2, -3*L, 4*L**2]])
+            
+            dof_xy = [4, 2, 10, 8]
+            dof_xz = [5, 1, 11, 7]
+
+            k_geo[np.ix_(dof_xy, dof_xy)] += k_sig
+            k_geo[np.ix_(dof_xz, dof_xz)] += k_sig
+
+        return k_perm + k_geo
 
     def get_K_st(self):
 
@@ -271,10 +287,11 @@ class Structural_Analysis_BD_Rect:
 
         for i in range(n_nd):
             self.lambda_[i * 3: i * 3 + 3, :] = self.PI_e[i * 6: i * 6 + 3, :]
-            self.gamma[i * 3: i * 3 + 3, :] = self.PI_e[i * 6 + 3: i * 6 + 6, :]
+            self.gamma[i * 3: i * 3 + 3,
+                       :] = self.PI_e[i * 6 + 3: i * 6 + 6, :]
 
         return self.PI_e
-    
+
     def get_K_fl(self):
         # Initialize K
         K = np.zeros((self.n_md + 6, self.n_md + 6))
@@ -334,16 +351,17 @@ class Structural_Analysis_BD_Rect:
                     gamma_s = gamma[i * 3: i*3 + 3, s]
                     lambda_s = lambda_[i * 3: i * 3 + 3, s]
 
-                    G_0_sum[r, s] += lambda_r.T @ J[i] @ lambda_s + m_nd[i] * (lambda_r.T @ p_skew @ gamma_s + lambda_s.T @ p_skew @ gamma_r + gamma_r.T @ gamma_s)
-                    #J_2_sum[3*r:3*r+3, 3*s:3*s+3] += m_nd[i] * sb.skew(gamma_r) @ sb.skew(gamma_s)
-                    #F_1_sum[3*r:3*r+3, s] += m_nd[i] * sb.skew(gamma_r) @ gamma_s
+                    G_0_sum[r, s] += lambda_r.T @ J[i] @ lambda_s + m_nd[i] * (
+                        lambda_r.T @ p_skew @ gamma_s + lambda_s.T @ p_skew @ gamma_r + gamma_r.T @ gamma_s)
+                    # J_2_sum[3*r:3*r+3, 3*s:3*s+3] += m_nd[i] * sb.skew(gamma_r) @ sb.skew(gamma_s)
+                    # F_1_sum[3*r:3*r+3, s] += m_nd[i] * sb.skew(gamma_r) @ gamma_s
 
         # Store modal integrals
         self.p_0 = 1/m * p_0_sum
         self.p_1 = 1/m * p_1_sum
         self.J_0 = J_0_sum
-        self.J_1 = - J_1_sum
-        #self.J_2 = - J_2_sum
+        self.J_1 = J_1_sum
+        # self.J_2 = - J_2_sum
         self.F_0 = F_0_sum
         self.F_1 = F_1_sum
         self.G_0 = G_0_sum
@@ -400,6 +418,8 @@ class Structural_Analysis_BD_Rect:
         self.n_elem = self.n_nd - 1
         self.L_elem = self.L / self.n_elem
         self.m_e = self.rho * self.A * self.L_elem
+        self.constant_axial_load = flex.constant_axial_load
+        self.F_axial = flex.F_axial
 
         # Mode selection
         self.n_md_compute = flex.n_md

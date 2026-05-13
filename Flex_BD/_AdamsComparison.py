@@ -8,8 +8,8 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import os
 
-ADAMS_HINGE1_FILE = "Hinge1_ang_acc.tab"
-ADAMS_HINGE2_FILE = "Hinge2_ang_acc.tab"
+ADAMS_HINGE1_FILE = "_Hinge1_ang_acc_alu.tab"
+ADAMS_HINGE2_FILE = "_Hinge2_ang_acc_alu.tab"
 
 
 def read_adams_tab(filename):
@@ -51,7 +51,11 @@ H_type1 = "revy"
 H_type2 = "revy"
 
 # n_md_max = (n_nd - 1) * 3
-E, G, c, rho, n_nd, n_md = 230e9, 80e9, 0.02, 8046, 10, 6
+# steel
+# E, G, c, rho, n_nd, n_md = 230e9, 80e9, 0.02, 7801, 10, 10
+
+# Alu
+E, G, c, rho, n_nd, n_md = 7.17e10, 2.7e10, 0.02, 2740, 10, 10
 
 w, h = 0.04, 0.04
 
@@ -74,6 +78,8 @@ tf = 10
 dt = 0.01
 
 sim = Simulation(system, tf, dt)
+sim.set_max_step(dt)
+sim.set_tol(1e-6, 1e-8)
 sim.IntegrateSystem("Radau")
 
 
@@ -157,32 +163,23 @@ err2 = theta_ddot_body2_plot - adams2_q_plot
 # Plot SOA vs Adams and errors
 # =================================================
 
-fig, axs = plt.subplots(4, 1, figsize=(10, 11), sharex=True)
+fig, axs = plt.subplots(2, 1, figsize=(10, 11), sharex=True)
 
 axs[0].plot(t_plot, theta_ddot_body1_plot, label="Flex SOA")
 axs[0].plot(t_plot, adams1_q_plot, "--", label="Adams")
-axs[0].set_ylabel(r"$\ddot{\theta}_1$ [rad/s$^2$]")
-axs[0].set_title("Hinge 1 Angular Acceleration")
+axs[0].set_ylabel("Joint acceleration [rad/s$^2$]")
+axs[0].set_title("Joint acceleration of body 1")
 axs[0].grid(True)
 axs[0].legend()
 
-# axs[1].plot(t_plot, err1)
-# axs[1].set_ylabel("SOA - Adams")
-# axs[1].set_title("Hinge 1 Error")
-# axs[1].grid(True)
+axs[1].plot(t_plot, theta_ddot_body2_plot, label="Flex SOA")
+axs[1].plot(t_plot, adams2_q_plot, "--", label="Adams")
+axs[1].set_ylabel(r"Joint acceleration [rad/s$^2$]")
+axs[1].set_title("Joint acceleration of body 2")
+axs[1].grid(True)
+axs[1].legend()
 
-axs[2].plot(t_plot, theta_ddot_body2_plot, label="Flex SOA")
-axs[2].plot(t_plot, adams2_q_plot, "--", label="Adams")
-axs[2].set_ylabel(r"$\ddot{\theta}_2$ [rad/s$^2$]")
-axs[2].set_title("Hinge 2 Angular Acceleration")
-axs[2].grid(True)
-axs[2].legend()
-
-# axs[3].plot(t_plot, err2)
-# axs[3].set_xlabel("Time [s]")
-# axs[3].set_ylabel("SOA - Adams")
-# axs[3].set_title("Hinge 2 Error")
-# axs[3].grid(True)
+fig.suptitle("Aluminum", fontsize=16)
 
 plt.tight_layout()
 plt.show()

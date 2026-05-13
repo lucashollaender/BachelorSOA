@@ -13,10 +13,22 @@ class MultibodySystem:
         Eta_0 = [b.initialcondition.eta0 for b in bodies]
         Eta_dot_0 = [b.initialcondition.eta_dot0 for b in bodies]
         self.S0 = SystemState(Theta_0, Beta_0, Eta_0, Eta_dot_0).pack()
+        self.ATBI.g = np.array([0, 0, 0, 0, 0, 9.81]).reshape(6, 1)
+
+    def set_gravity(self, gravOnOff):
+        if gravOnOff:
+            self.ATBI.g = np.array([0, 0, 0, 0, 0, 9.81]).reshape(6, 1)
+        else:
+            self.ATBI.g = np.zeros((6, 1))
 
     def EOM(self, t, S):
         state = SystemState.unpack(
             S.reshape(-1, 1), [b.joint for b in self.bodies], [b.flex for b in self.bodies])
+        
+        for k, body in enumerate(self.bodies):
+            if body.joint.type in ["spherical"]:
+                q = state.Theta[k][0:4]
+                state.Theta[k][0:4] = q / np.linalg.norm(q)
             
         X, V, a_fl, b_fl = self.ATBI.scatter_kinematics(state)
         G_pr, nu_pr, nu_m, g_fl = self.ATBI.gather_ATBI(
