@@ -42,7 +42,7 @@ b2 = SOABody(j2, r2, f2)
 b3 = SOABody(j3, r3, f3)
 
 
-#b1.set_initial_beta0(1)
+# b1.set_initial_beta0(1)
 # b1.set_initial_eta0(np.array([0, 0, 0, 0, 0, 0, 0]).reshape(7, 1))
 
 PIe = b1.flex.PI_end
@@ -54,9 +54,9 @@ print(np.linalg.norm(PIe[5, :]))
 K = b1.flex.K_fl
 M = b1.flex.M_fl
 
-#b1.set_TS(100, 100, np.pi)
-#F_ext1 = np.array([0, 0, 0, 0, 100, 100]).reshape(6, 1)
-#b1.set_F_ext(node=7, F_ext=F_ext1)
+# b1.set_TS(100, 100, np.pi)
+# F_ext1 = np.array([0, 0, 0, 0, 100, 100]).reshape(6, 1)
+# b1.set_F_ext(node=7, F_ext=F_ext1)
 
 # eta0 = np.vstack([np.array([5]), np.zeros((n_md-1, 1))]).reshape(6, 1)
 # eta0 = np.array([0, 0, 0, 0, 10, 0]).reshape(6, 1)
@@ -65,7 +65,7 @@ M = b1.flex.M_fl
 bodies = [b1, b2, b3]
 
 system = MultibodySystem(bodies)
-#system.set_gravity(True)
+# system.set_gravity(True)
 
 tf = 10
 dt = 0.01
@@ -82,7 +82,7 @@ sim.IntegrateSystem("Radau")
 
 save_dir = r"C:\Users\jepp6\OneDrive - Aarhus universitet\Dokumenter\Noter\6. Semester\Bachelor Projekt\BachelorCode\Renders"
 
-#sim.animate_nodes(filename="Test1", save_dir=save_dir)
+# sim.animate_nodes(filename="Test1", save_dir=save_dir)
 sim.animate_nodes()
 
 """

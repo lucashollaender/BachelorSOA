@@ -4,6 +4,7 @@ from SOALIB import soalib as sb
 from SystemState import SystemState
 import pandas as pd
 
+
 class ATBI_Flex:
     # ATBI class with bodies
     def __init__(self, bodies):
@@ -71,10 +72,10 @@ class ATBI_Flex:
 
             # Gyroscopic Force
             b_fl[k] = body.gyroscopic_BD(body, V_r[k], body.m)
-            
+
             # Rigid formulations
-            #a_fl[k] = body.coriolis(V_r[k], beta, H, n_md)
-            #b_fl[k] = np.vstack([np.zeros((n_md, 1)), body.gyroscopic(V_r[k], body.flex.M_fl[-6:, -6:])])
+            # a_fl[k] = body.coriolis(V_r[k], beta, H, n_md)
+            # b_fl[k] = np.vstack([np.zeros((n_md, 1)), body.gyroscopic(V_r[k], body.flex.M_fl[-6:, -6:])])
 
             V[k] = np.vstack([V_f[k], V_r[k]])
 
@@ -112,20 +113,21 @@ class ATBI_Flex:
             C_fl = body.flex.C_fl
             PI = body.flex.PI_end
             n_md = body.flex.n_md
-            H_M_fl = np.hstack([np.eye(n_md, n_md), np.zeros((n_md, 6))])
+            # H_M_fl = np.hstack([np.eye(n_md, n_md), np.zeros((n_md, 6))])
             klOO = X[k][4:7]
 
             # Applied loads and springs
             F_ext_term = body.get_F_ext_term(state, t)
             tau_TS_term = body.get_TS_term(theta, beta)
-            
 
             if k == 0:
                 # Gather loop for k = 0 (Tip)
                 Gamma_fl = np.zeros((0, 6))
                 P_fl = M_fl
-                D_m[k] = H_M_fl @ P_fl @ H_M_fl.T
-                mu_fl = P_fl[-6:, :] @ H_M_fl.T
+                # D_m[k] = H_M_fl @ P_fl @ H_M_fl.T
+                # mu_fl = P_fl[-6:, :] @ H_M_fl.T
+                D_m[k] = P_fl[:n_md, :n_md]
+                mu_fl = P_fl[-6:, :n_md]
                 D_m_inv = body.get_D_m_inv(Gamma_fl, "tip")
                 g_fl[k] = mu_fl @ D_m_inv
                 P_pr[k] = P_fl[-6:, -6:] - g_fl[k] @ mu_fl.T
@@ -156,9 +158,11 @@ class ATBI_Flex:
                 # Gather loop for k > 0 (Not tip)
                 Gamma_fl = R6 @ P_pr_plus[k-1] @ R6.T  # ?!?!?!?
                 P_fl = A_fl @ Gamma_fl @ A_fl.T + M_fl
-                D_m[k] = H_M_fl @ P_fl @ H_M_fl.T
-                mu_fl = P_fl[-6:, :] @ H_M_fl.T
-                #D_m_inv = la.solve(D_m[k], np.eye(n_md), assume_a="sym")
+                # D_m[k] = H_M_fl @ P_fl @ H_M_fl.T
+                # mu_fl = P_fl[-6:, :] @ H_M_fl.T
+                D_m[k] = P_fl[:n_md, :n_md]
+                mu_fl = P_fl[-6:, :n_md]
+                # D_m_inv = la.solve(D_m[k], np.eye(n_md), assume_a="sym")
                 D_m_inv = body.get_D_m_inv(Gamma_fl, "not_tip")
                 g_fl[k] = mu_fl @ D_m_inv
                 P_pr[k] = P_fl[-6:, -6:] - g_fl[k] @ mu_fl.T

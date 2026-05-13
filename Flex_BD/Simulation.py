@@ -14,6 +14,7 @@ from tqdm import tqdm
 # Increase limit to 100 MB (default is 20)
 plt.rcParams['animation.embed_limit'] = 1000
 
+
 class Simulation:
     class Data:
         def __init__(self):
@@ -66,6 +67,19 @@ class Simulation:
         if self.setting.solver == "RK4":
 
             Y, t = sb.integrate_RK4(self.system, 0, self.tf, self.dt)
+
+            self.data.time = t
+            states = Y.T
+
+        elif self.setting.solver == "BE":
+            Y, t = sb.integrate_backward_euler(
+                self.system,
+                0,
+                self.tf,
+                self.dt,
+                tol=1e-8,
+                max_iter=20
+            )
 
             self.data.time = t
             states = Y.T
@@ -165,10 +179,10 @@ class Simulation:
     def set_tol(self, atol, rtol):
         self.setting.atol = atol
         self.setting.rtol = rtol
-    
+
     def set_max_step(self, max_step):
         self.setting.max_step = max_step
-    
+
     # COM Coordinate Frames
     def show_COM_frames(self, scale=0.5):
         self.setting.show_com_frames = True
@@ -202,11 +216,11 @@ class Simulation:
 
             # 1. Global Position of the CoM node
             pos_und = klOO_nd[mid_idx]
-            u_mid = PI[mid_idx*6+3 : mid_idx*6+6, :] @ eta
+            u_mid = PI[mid_idx*6+3: mid_idx*6+6, :] @ eta
             p_glob = last_end + R_i @ (pos_und + u_mid)
 
             # 2. Global Rotation of the CoM node
-            R_mid_vec = PI[mid_idx*6 : mid_idx*6+3, :] @ eta
+            R_mid_vec = PI[mid_idx*6: mid_idx*6+3, :] @ eta
             R_mid = Rotation.from_rotvec(R_mid_vec.flatten()).as_matrix()
             R_glob = R_i @ R_mid
 
@@ -218,7 +232,7 @@ class Simulation:
             lines_data.append((p_glob, x_end, y_end, z_end))
 
             # Advance to the tip of this body to set up the next body's base
-            u_last = PI[(n_nd-1)*6+3 : (n_nd-1)*6+6, :] @ eta
+            u_last = PI[(n_nd-1)*6+3: (n_nd-1)*6+6, :] @ eta
             last_end = last_end + R_i @ (klOO_nd[-1] + u_last)
 
             R_n_vec = PI[-6:-3, :] @ eta
@@ -401,16 +415,22 @@ class Simulation:
                 frame_data = self.get_com_frame_data(frame_idx)
                 for b_idx, (p_glob, x_end, y_end, z_end) in enumerate(frame_data):
                     # X Axis (Red)
-                    com_lines[b_idx*3].set_data([p_glob[0,0], x_end[0,0]], [p_glob[1,0], x_end[1,0]])
-                    com_lines[b_idx*3].set_3d_properties([p_glob[2,0], x_end[2,0]])
-                    
+                    com_lines[b_idx*3].set_data([p_glob[0, 0],
+                                                x_end[0, 0]], [p_glob[1, 0], x_end[1, 0]])
+                    com_lines[b_idx *
+                              3].set_3d_properties([p_glob[2, 0], x_end[2, 0]])
+
                     # Y Axis (Green)
-                    com_lines[b_idx*3+1].set_data([p_glob[0,0], y_end[0,0]], [p_glob[1,0], y_end[1,0]])
-                    com_lines[b_idx*3+1].set_3d_properties([p_glob[2,0], y_end[2,0]])
-                    
+                    com_lines[b_idx*3+1].set_data([p_glob[0, 0], y_end[0, 0]], [
+                                                  p_glob[1, 0], y_end[1, 0]])
+                    com_lines[b_idx*3 +
+                              1].set_3d_properties([p_glob[2, 0], y_end[2, 0]])
+
                     # Z Axis (Blue)
-                    com_lines[b_idx*3+2].set_data([p_glob[0,0], z_end[0,0]], [p_glob[1,0], z_end[1,0]])
-                    com_lines[b_idx*3+2].set_3d_properties([p_glob[2,0], z_end[2,0]])
+                    com_lines[b_idx*3+2].set_data([p_glob[0, 0], z_end[0, 0]], [
+                                                  p_glob[1, 0], z_end[1, 0]])
+                    com_lines[b_idx*3 +
+                              2].set_3d_properties([p_glob[2, 0], z_end[2, 0]])
 
             # Camera control
             if self.setting.camera_speed == 0 and frame_idx == 0 and camera_initialized == False:

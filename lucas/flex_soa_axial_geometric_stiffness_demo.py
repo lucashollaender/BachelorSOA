@@ -1,5 +1,13 @@
-# merged_flex_soa.py
+# flex_soa_axial_geometric_stiffness_demo.py
 """
+Merged flexible-body SOA implementation with prescribed axial-load geometric stiffness.
+
+Patch added by ChatGPT:
+    - Flex_Properties.P_axial
+    - Structural_Analysis_BD_Rect.get_geom_stiff_mat_axial_3D()
+    - Structural_Analysis_BD_Rect.get_Kg_st()
+    - Modal stiffness K_fl = Phi.T @ (K_st + Kg_st) @ Phi
+
 Merged flexible-body SOA implementation.
 
 Generated from:
@@ -97,11 +105,17 @@ class Rigid_Properties:
 
 
 class Flex_Properties:
-    def __init__(self, E, G, c, n_nd, n_md, selected_mode_labels=None, mode_quota=None):
+    def __init__(self, E, G, c, n_nd, n_md, selected_mode_labels=None, mode_quota=None, P_axial=0.0):
         self.E = E
         self.G = G
         self.c = c
         self.n_nd = n_nd
+
+        # Prescribed axial force in the beam local x direction.
+        # Sign convention used in this demo:
+        #   P_axial > 0 : tension     -> geometric stiffening
+        #   P_axial < 0 : compression -> geometric softening
+        self.P_axial = float(P_axial)
         # n_md is the number of candidate modes to compute before optional selection.
         # If a selector is used, this value is overwritten by the number of kept modes.
         self.n_md = n_md
@@ -263,6 +277,82 @@ class Structural_Analysis_BD_Rect:
         k_perm = k[np.ix_(perm, perm)]
 
         return k_perm
+
+    def get_geom_stiff_mat_axial_3D(self, P_axial):
+        """
+        Local 12x12 geometric stiffness matrix for a 3D beam element
+        under a prescribed constant axial force P_axial.
+
+        DOF order used by this code:
+            node 1: [rx, ry, rz, ux, uy, uz]
+            node 2: [rx, ry, rz, ux, uy, uz]
+
+        Beam local axis is x.
+
+        Sign convention used in this demo:
+            P_axial > 0 : tension     -> stiffening
+            P_axial < 0 : compression -> softening
+
+        This is the standard Euler-Bernoulli beam-column geometric
+        stiffness contribution for transverse bending. It intentionally
+        does not add axial or torsional geometric stiffness terms.
+        """
+        L = self.L_elem
+        P = float(P_axial)
+
+        kg = np.zeros((12, 12))
+
+        if abs(P) < 1e-14:
+            return kg
+
+        c = P / (30.0 * L)
+
+        # Bending in local x-y plane:
+        # transverse displacement uy, rotation rz
+        # DOFs: [uy1, rz1, uy2, rz2]
+        kg_y = c * np.array([
+            [36.0,      3.0*L,   -36.0,      3.0*L],
+            [3.0*L,     4.0*L**2, -3.0*L,    -1.0*L**2],
+            [-36.0,    -3.0*L,    36.0,     -3.0*L],
+            [3.0*L,    -1.0*L**2, -3.0*L,     4.0*L**2],
+        ])
+
+        idx_y = [4, 2, 10, 8]   # [uy1, rz1, uy2, rz2]
+        kg[np.ix_(idx_y, idx_y)] += kg_y
+
+        # Bending in local x-z plane:
+        # transverse displacement uz, rotation ry
+        # DOFs: [uz1, ry1, uz2, ry2]
+        #
+        # The signs differ because positive ry produces the opposite
+        # transverse-slope convention compared with rz.
+        kg_z = c * np.array([
+            [36.0,     -3.0*L,   -36.0,     -3.0*L],
+            [-3.0*L,    4.0*L**2,  3.0*L,    -1.0*L**2],
+            [-36.0,     3.0*L,    36.0,      3.0*L],
+            [-3.0*L,   -1.0*L**2,  3.0*L,     4.0*L**2],
+        ])
+
+        idx_z = [5, 1, 11, 7]   # [uz1, ry1, uz2, ry2]
+        kg[np.ix_(idx_z, idx_z)] += kg_z
+
+        return kg
+
+    def get_Kg_st(self, P_axial=None):
+        """
+        Assemble the full structural geometric stiffness matrix.
+        """
+        if P_axial is None:
+            P_axial = self.P_axial
+
+        kg_local = self.get_geom_stiff_mat_axial_3D(P_axial)
+        Kg_st = np.zeros((6*self.n_nd, 6*self.n_nd))
+
+        for i in range(self.n_nd - 1):
+            dofs = slice(6*i, 6*i + 12)
+            Kg_st[dofs, dofs] += kg_local
+
+        return Kg_st
 
     def get_K_st(self):
 
@@ -446,9 +536,20 @@ class Structural_Analysis_BD_Rect:
         return labels
 
     def get_K_fl(self):
-        # Initialize K
+        """
+        Modal stiffness including prescribed axial-force geometric stiffness.
+
+        K_fl = Phi.T @ (K_st + Kg_st) @ Phi
+        """
         K = np.zeros((self.n_md + 6, self.n_md + 6))
-        K[0:self.n_md, 0:self.n_md] = self.PI.T @ self.K_st @ self.PI
+
+        K_modal_nominal = self.PI.T @ self.K_st @ self.PI
+        K_modal_geo = self.PI.T @ self.Kg_st @ self.PI
+
+        self.K_modal_nominal = K_modal_nominal
+        self.K_modal_geo = K_modal_geo
+
+        K[0:self.n_md, 0:self.n_md] = K_modal_nominal + K_modal_geo
 
         return K
 
@@ -525,7 +626,7 @@ class Structural_Analysis_BD_Rect:
         self.p_1 = 1/m * p_1_sum
         self.J_0 = -J_0_sum
         self.J_1 = -J_1_sum #-
-        self.J_2 = -J_2_sum
+        self.J_2 = - J_2_sum
         self.F_0 = F_0_sum
         self.F_1 = F_1_sum
         self.G_0 = G_0_sum
@@ -582,6 +683,7 @@ class Structural_Analysis_BD_Rect:
         self.E = flex.E
         self.G = flex.G
         self.c = flex.c
+        self.P_axial = float(getattr(flex, "P_axial", 0.0))
         self.n_nd = flex.n_nd
         # Keep the requested number as candidate count. self.n_md is later
         # overwritten by the number of selected modes.
@@ -596,6 +698,7 @@ class Structural_Analysis_BD_Rect:
 
         # Structural analysis
         self.K_st = self.get_K_st()
+        self.Kg_st = self.get_Kg_st(self.P_axial)
         self.M_st = self.get_M_st()
         self.PI = self.get_PI()
         """
@@ -696,6 +799,12 @@ class SOABody:
             # Stiffness, damping and mass matrix
             self.flex.K_fl = body_analysis.K_fl
             self.flex.C_fl = body_analysis.C_fl
+
+            # Geometric stiffness due to prescribed axial load
+            self.flex.P_axial = body_analysis.P_axial
+            self.flex.Kg_st = body_analysis.Kg_st
+            self.flex.K_modal_nominal = body_analysis.K_modal_nominal
+            self.flex.K_modal_geo = body_analysis.K_modal_geo
 
             # Modal integral for gyroscopic force
             self.flex.F_0 = body_analysis.F_0
@@ -924,7 +1033,7 @@ class ATBI_Flex:
 
         b_v_1=sb.skew(omega) @ (m*sb.skew(omega) @ p_1 @ eta + 2*E @ eta_dot)
         b_v=b_v_0+b_v_1
-        return np.vstack([b_eta, b_omega, b_v])
+        return np.vstack([b_eta_0, b_omega_0, b_v_0+b_v_1])
     
     def M_fl_eta(self, body, eta):
         n_md = body.flex.n_md
@@ -1716,19 +1825,25 @@ if __name__ == "__main__":
 
     # n_md_max = (n_nd - 1) * 3
 
-    E, G,c, rho, n_nd, n_md = 1.93e9, 6.902e8,0.2, 1300, 10, 20
+    E, G, c, rho, n_nd, n_md = 1.93e9, 6.902e8, 0, 1300, 10, 20
 
-    w, h = 0.04, 0.04
+    w, h = 0.04, 0.03
 
     j1 = Joint(klOO1, H_type1)
     r1 = Rigid_Properties(rho, w, h)
+    # Prescribed axial force demo:
+    #   P_axial > 0 : tension, raises bending frequencies
+    #   P_axial < 0 : compression, lowers bending frequencies
+    # Try P_axial = 0.0, 300.0, or -300.0 and compare the FFT peak.
     f1 = Flex_Properties(
     E, G, c, n_nd, n_md,
     mode_quota={
-        "bending_xy": 1,
-        "bending_xz": 1,
-        "axial_x": 1
-    })
+        "bending_xy": 4,
+        "bending_xz": 4,
+        "axial_x": 1,
+        "torsion_x": 1
+    },
+    P_axial=0)
 
     j2 = Joint(klOO2, H_type2)
     r2 = Rigid_Properties(rho, w, h)
@@ -1745,14 +1860,14 @@ if __name__ == "__main__":
         return np.array([0, 0, 0, 0, 0, -F0]).reshape(6, 1)
     
     def pulse_force(t, state, body):
-        if  1<= t <= 1.09:
-            return np.array([0, 0, 0, 0, 0, 100]).reshape(6, 1)
+        if  0.0<= t <= 0.02:
+            return np.array([0, 0, 0, 0, 0, 1000]).reshape(6, 1)
         else:
-            return np.zeros((6, 1)) 
+            return np.zeros((6, 1))
 
-    #F_tip = np.array([0, 0, 0, 1e7, 0, 0]).reshape(6, 1)
+    #F_tip = np.array([0, 0, 0, 1e4, 0, 0]).reshape(6, 1)
     #b1.add_F_ext(node=b1.flex.n_nd - 1, F_ext=F_tip)
-    b1.add_F_ext(node=b1.flex.n_nd // 2, F_fun=pulse_force)
+    #b1.add_F_ext(node=b1.flex.n_nd // 2, F_fun=pulse_force)
     
     
     #b1.add_F_ext(node=b1.flex.n_nd - 2, F_fun=decaying_tip_force)
@@ -1761,28 +1876,28 @@ if __name__ == "__main__":
 
     #F_ext2 = np.array([0, 0, 0, 1e3, 0, 0]).reshape(6, 1)
     #b2.set_F_ext(F_ext2)
-    #b1.set_initial_beta0(40)
+    #b1.set_initial_beta0(20)
 
 
     #eta0 = np.vstack([np.array([5]), np.zeros((n_md-1, 1))]).reshape(6, 1)
-    #eta0 = np.array([0, 0, 0, 0, 10, 0]).reshape(6, 1)
+    #eta0 = 1e-4*np.array([1, 1, 1, 1, 1, 1,1,1,1,1]).reshape(10, 1)
     #b1.set_initial_eta0(eta0)
 
-    bodies = [b1]
-    print("Mode classification:")
-    print(pd.DataFrame(b1.flex.modes).to_string(index=False))
-    print("n_md used =", b1.flex.n_md)
+    eta_dot0 = np.ones((10, 1))
+    b1.set_initial_eta_dot0(eta_dot0)
 
+    bodies = [b1]
+ 
     system = MultibodySystem(bodies)
 
-    tf = 2
-    dt = 0.01
+    tf = 0.6
+    dt = 0.001
     sim = Simulation(system, tf, dt)
 
     sim.set_camera_ver(0)
     sim.set_camera_hor(90)
     sim.set_camera_speed(0)
-    sim.set_ani_dt(0.01)
+    sim.set_ani_dt(0.001)
 
     sim.IntegrateSystem("Radau")
 
@@ -1815,55 +1930,251 @@ if __name__ == "__main__":
 
     print(pd.DataFrame(eta_hist))
     """
-    
+
+    from scipy.fft import rfft, rfftfreq
+    from scipy.signal import find_peaks
     
     # FFT analysis
-    state = sim.get_state()
+    # -------------------------------------------------
+    # Settings
+    # -------------------------------------------------
     body = sim.system.bodies[0]
+    state = sim.get_state()
+    t = np.asarray(sim.data.time)
 
+    #node = body.flex.n_nd // 2      # midpoint node
+    node = body.flex.n_nd - 1     # tip node, alternatively
+
+    f_max_plot = 350
+    amp_floor = 1e-8
+
+    # -------------------------------------------------
+    # Extract nodal deformation history
+    # Spatial/nodal order:
+    # [theta_x, theta_y, theta_z, u_x, u_y, u_z]
+    # -------------------------------------------------
     PI = body.flex.PI
-    mid_node = body.flex.n_nd // 2
 
-    uz_mid_hist = []
+    u_hist = []
 
     for s in state:
         eta = s.Eta[0]
-        u_mid = PI[6*mid_node : 6*mid_node + 6, :] @ eta
-        uz_mid_hist.append(u_mid[5, 0])   # z deformation
+        u_node = PI[6*node : 6*node + 6, :] @ eta
+        u_hist.append(u_node.flatten())
 
-    uz_mid_hist = np.array(uz_mid_hist)
+    u_hist = np.asarray(u_hist)
 
-    from scipy.fft import rfft, rfftfreq
-    t = np.asarray(sim.data.time)
-    y_all = np.asarray(uz_mid_hist)
+    theta_x = u_hist[:, 0]
+    theta_y = u_hist[:, 1]
+    theta_z = u_hist[:, 2]
 
-    # Only use data after t = 3.1 s
-    mask = t >= 1.1
-    t_fft = t[mask]
-    y = y_all[mask]
+    u_x = u_hist[:, 3]
+    u_y = u_hist[:, 4]
+    u_z = u_hist[:, 5]
 
-    # Optional check
-    print(pd.DataFrame({"t": t_fft, "uz_mid": y}))
+    dt_fft = np.mean(np.diff(t))
+    freq = rfftfreq(len(t), dt_fft)
 
-    # remove static offset after cutting the signal
-    #y = y - np.mean(y)
+    # -------------------------------------------------
+    # FFT helper
+    # -------------------------------------------------
+    def compute_fft(y):
+        y = np.asarray(y)
+        y = y - np.mean(y)
 
-    # window
-    window = np.hanning(len(y))
-    y_win = y * window
+        window = np.hanning(len(y))
+        y_win = y * window
 
-    # time step
-    dt = t_fft[1] - t_fft[0]
+        amp = np.abs(rfft(y_win))
 
-    freq = rfftfreq(len(y_win), dt)
-    amp = np.abs(rfft(y_win))
+        if np.max(amp) > 0:
+            amp_norm = amp / np.max(amp)
+        else:
+            amp_norm = amp
 
-    plt.figure()
-    plt.plot(freq, amp)
-    plt.xlim(0, 20)
-    plt.xlabel("Frequency [Hz]")
-    plt.ylabel("Amplitude")
-    plt.grid(True)
+        amp_norm_log = np.maximum(amp_norm, amp_floor)
+
+        return amp, amp_norm, amp_norm_log
+
+    # -------------------------------------------------
+    # Compute FFTs
+    # -------------------------------------------------
+    signals = {
+        "u_x": u_x,
+        "u_y": u_y,
+        "u_z": u_z,
+        "theta_x": theta_x,
+        "theta_y": theta_y,
+        "theta_z": theta_z,
+    }
+
+    fft_data = pd.DataFrame({"frequency_hz": freq})
+
+    for name, signal in signals.items():
+        amp, amp_norm, amp_norm_log = compute_fft(signal)
+
+        fft_data[f"{name}_amp"] = amp
+        fft_data[f"{name}_amp_norm"] = amp_norm
+        fft_data[f"{name}_amp_norm_log"] = amp_norm_log
+
+    fft_data.to_csv("fft_nodal_dofs.csv", index=False)
+    print("Saved FFT data to fft_nodal_dofs.csv")
+
+    # -------------------------------------------------
+    # Peak detection
+    # -------------------------------------------------
+    peak_min_height = 0.01        # minimum normalized amplitude
+    peak_min_prominence = 0.01    # how much the peak stands out
+    peak_min_distance_hz = 1.2    # minimum spacing between peaks [Hz]
+    n_peaks_to_mark = 5           # max peaks marked per signal
+    f_min_peak = 0.5              # ignore near-zero frequency
+    f_max_peak = f_max_plot
+
+    df = freq[1] - freq[0]
+    peak_min_distance_samples = max(1, int(np.ceil(peak_min_distance_hz / df)))
+
+    peak_rows = []
+
+    for name in signals.keys():
+        amp_norm = fft_data[f"{name}_amp_norm"].to_numpy()
+
+        # Only search peaks inside selected frequency range
+        valid = (freq >= f_min_peak) & (freq <= f_max_peak)
+
+        peaks, properties = find_peaks(
+            amp_norm[valid],
+            height=peak_min_height,
+            prominence=peak_min_prominence,
+            distance=peak_min_distance_samples
+        )
+
+        valid_indices = np.where(valid)[0]
+        peak_indices = valid_indices[peaks]
+
+        # Sort by amplitude, largest first
+        peak_indices = sorted(
+            peak_indices,
+            key=lambda i: amp_norm[i],
+            reverse=True
+        )
+
+        # Keep only the strongest peaks
+        peak_indices = peak_indices[:n_peaks_to_mark]
+
+        for i in peak_indices:
+            peak_rows.append({
+                "signal": name,
+                "frequency_hz": freq[i],
+                "amplitude_norm": amp_norm[i],
+                "amplitude": fft_data[f"{name}_amp"].iloc[i]
+            })
+
+    peak_data = pd.DataFrame(peak_rows)
+    peak_data.to_csv("fft_detected_peaks.csv", index=False)
+
+    print("Saved detected FFT peaks to fft_detected_peaks.csv")
+    print(peak_data)
+
+    # -------------------------------------------------
+    # Plot 1: translational DOFs with detected peaks
+    # -------------------------------------------------
+    plt.figure(figsize=(10, 5.5))
+
+    translation_signals = ["u_x", "u_y", "u_z"]
+
+    for name in translation_signals:
+        plt.plot(
+            freq,
+            fft_data[f"{name}_amp_norm_log"],
+            linewidth=2.0,
+            label=rf"${name}$"
+        )
+
+        signal_peaks = peak_data[peak_data["signal"] == name]
+
+        plt.scatter(
+            signal_peaks["frequency_hz"],
+            signal_peaks["amplitude_norm"],
+            s=35,
+            marker="o"
+        )
+
+        for _, row in signal_peaks.iterrows():
+            plt.annotate(
+                f"{row['frequency_hz']:.1f} Hz",
+                xy=(row["frequency_hz"], row["amplitude_norm"]),
+                xytext=(4, 6),
+                textcoords="offset points",
+                fontsize=8,
+                rotation=45
+            )
+
+    for m in body.flex.modes:
+        plt.axvline(m["freq_hz"], linestyle=":", linewidth=0.8, alpha=0.5)
+
+    plt.xlim(0, f_max_plot)
+    plt.ylim(amp_floor, 1.2)
+
+    plt.xlabel("Frequency [Hz]", fontsize=12)
+    plt.ylabel("Normalized amplitude [-]", fontsize=12)
+    plt.title(f"FFT of translational deformation at tip node", fontsize=14)
+
+    plt.grid(True, which="both", linestyle=":", linewidth=0.8)
+    plt.legend(fontsize=11)
+    plt.tight_layout()
+
+    plt.savefig("fft_translations.png", dpi=300)
     plt.show()
 
-    
+    # -------------------------------------------------
+    # Plot 2: rotational DOFs with detected peaks
+    # -------------------------------------------------
+    plt.figure(figsize=(10, 5.5))
+
+    rotation_signals = ["theta_x", "theta_y", "theta_z"]
+
+    for name in rotation_signals:
+        label = name.replace("theta", r"\theta")
+
+        plt.plot(
+            freq,
+            fft_data[f"{name}_amp_norm_log"],
+            linewidth=2.0,
+            label=rf"${label}$"
+        )
+
+        signal_peaks = peak_data[peak_data["signal"] == name]
+
+        plt.scatter(
+            signal_peaks["frequency_hz"],
+            signal_peaks["amplitude_norm"],
+            s=35,
+            marker="o"
+        )
+
+        for _, row in signal_peaks.iterrows():
+            plt.annotate(
+                f"{row['frequency_hz']:.1f} Hz",
+                xy=(row["frequency_hz"], row["amplitude_norm"]),
+                xytext=(4, 6),
+                textcoords="offset points",
+                fontsize=8,
+                rotation=45
+            )
+
+    for m in body.flex.modes:
+        plt.axvline(m["freq_hz"], linestyle=":", linewidth=0.8, alpha=0.5)
+
+    plt.xlim(0, f_max_plot)
+    plt.ylim(amp_floor, 1.2)
+
+    plt.xlabel("Frequency [Hz]", fontsize=12)
+    plt.ylabel("Normalized amplitude [-]", fontsize=12)
+    plt.title(f"FFT of rotational deformation at tip node", fontsize=14)
+
+    plt.grid(True, which="both", linestyle=":", linewidth=0.8)
+    plt.legend(fontsize=11)
+    plt.tight_layout()
+
+    plt.savefig("fft_rotations.png", dpi=300)
+    plt.show()
