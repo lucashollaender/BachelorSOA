@@ -7,6 +7,8 @@ from ATBI_Flex_Grav import ATBI_Flex
 class MultibodySystem:
     def __init__(self, bodies):
         self.bodies = bodies
+        self.joints = [b.joint for b in self.bodies]
+        self.flexs = [b.flex for b in self.bodies]
         self.ATBI = ATBI_Flex(bodies)
         Theta_0 = [b.initialcondition.theta0 for b in bodies]
         Beta_0 = [b.initialcondition.beta0 for b in bodies]
@@ -22,8 +24,7 @@ class MultibodySystem:
             self.ATBI.g = np.zeros((6, 1))
 
     def EOM(self, t, S):
-        state = SystemState.unpack(
-            S.reshape(-1, 1), [b.joint for b in self.bodies], [b.flex for b in self.bodies])
+        state = SystemState.unpack(S.reshape(-1, 1), self.joints, self.flexs)
         
         for k, body in enumerate(self.bodies):
             if body.joint.type in ["spherical"]:

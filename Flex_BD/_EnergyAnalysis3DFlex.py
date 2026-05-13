@@ -1,64 +1,63 @@
-from SOALIB.RigidForwardSOA import Joint, Inertia, SOABody, MultibodySystem, Simulation
 import numpy as np
-from SOALIB import soalib as sb
 import matplotlib.pyplot as plt
 from scipy.integrate import cumulative_trapezoid
 
+# Use Flexible Architecture Imports
+from Body_Properties import Joint, Rigid_Properties, Flex_Properties
+from SOABody import SOABody
+from MultibodySystem import MultibodySystem
+from Simulation import Simulation
+from SOALIB import soalib as sb
+
 def run_simulation_no_force():
+    # Body setup
     klOO = np.array([1, 0, 0]).reshape(3, 1)
     H_type1 = "spherical"
     H_type2 = "spherical"
 
-    # Mass & Inertia Targeting (m = rho * w * h * L)
-    # We want exactly 1 kg. Since L1 = L2 = 1, we can set w=0.1, h=0.1 (A=0.01) and rho=100.
+    # Properties to match m = 1kg exactly as done in _RigidFlexComparison.py
     w, h = 0.1, 0.1
+    rho = 100.0
 
-    m = 1
-
-    L = np.linalg.norm(klOO)
-    CkJk = np.array([1/12 * m * (h**2 + w**2), 1/12 * m * (h**2 + L**2), 1/12 * m * (w**2 + L**2)])
-    
-    klOC = klOO / 2
+    # Flex properties 
+    E, G, c = 230e9, 80e9, 0
+    n_nd = 3 # 3 nodes -> node 1 is exactly at the COM (0.5)
+    n_md = 0 # Zero modes -> Body behaves completely rigidly
 
     j1 = Joint(klOO, H_type1)
-    i1 = Inertia(m, CkJk, klOC)
-    b1 = SOABody(j1, i1)
+    r1 = Rigid_Properties(rho, w, h)
+    f1 = Flex_Properties(E, G, c, n_nd, n_md)
+    b1 = SOABody(j1, r1, f1)
 
     j2 = Joint(klOO, H_type2)
-    i2 = Inertia(m, CkJk, klOC)
-    b2 = SOABody(j2, i2)
+    r2 = Rigid_Properties(rho, w, h)
+    f2 = Flex_Properties(E, G, c, n_nd, n_md)
+    b2 = SOABody(j2, r2, f2)
 
     b1.set_initial_theta0(sb.get_quat_from_degrees(0, 0, 90))
-    
+
     bodies = [b1, b2]
     system = MultibodySystem(bodies)
 
     # Time
     tf = 10
     dt = 0.01
-    nt = int(tf/dt + 1)
 
     # Simulation
     sim = Simulation(system, tf, dt)
-    sim.camera_speed(1)
-    sim.IntegrateSystem()
-    #sim.animate()
+    sim.set_camera_speed(1)
+    
+    # We use RK45 settings matching the rigid/flex comparison script
+    sim.set_max_step(dt)
+    sim.set_tol(1e-8, 1e-10)
+    sim.IntegrateSystem("Radau")
 
-    # Mass matrix at COM
-    n = len(system.bodies)
-    MC = [None] * n
-
-    for j in range(n):
-        # Fetching the corrected self.MC from the Inertia class
-        MC[j] = system.bodies[j].inertia.MC
-
-    # Velocities
-    V_list = sim.get_V()
-    nt = len(V_list) # Total number of time steps
-
-    # Position
-    Pos_list = sim.get_pos()
+    # Extract Results
+    t_vector = sim.data.time
+    V_list = sim.get_V_fl() # Spatial velocities
+    Pos_list = sim.nNodalPos()
     g = 9.81
+    n = len(bodies)
 
     # List to store the total energy
     KE_list = []
@@ -66,64 +65,65 @@ def run_simulation_no_force():
     E_list = []
 
     # Energy
-    for i in range(nt):
+    for i in range(len(t_vector)):
         total_KE = 0
         total_PE = 0
         
         for j in range(n):
-            # Kinetic energy
-            klOC = system.bodies[j].inertia.klOC
-            VC_j = sb.phi(klOC).T @ V_list[i][j]
-            KE_j = 0.5 * (VC_j.T @ MC[j] @ VC_j).item()
+            body = system.bodies[j]
+            V_j = V_list[i][j]
+            M_fl = body.flex.M_fl
+            
+            # Kinetic energy (0.5 * V^T * M * V mapped to the body frame)
+            KE_j = 0.5 * (V_j.T @ M_fl @ V_j).item()
             total_KE += KE_j
 
             # Potential energy
-            m = system.bodies[j].inertia.m
-            z = (Pos_list[i][j][2].item() + Pos_list[i][j+1][2].item()) / 2
-            PE_j = z*g*m
+            m = body.m
+            # Using node 1 which represents the COM (s = 0.5)
+            z = Pos_list[i][j][1][2].item() 
+            PE_j = z * g * m
             total_PE += PE_j
 
         KE_list.append(total_KE)
         PE_list.append(total_PE)
         E_list.append(total_KE + total_PE)
 
-    t_vector = sim.data.time
     return t_vector, E_list
 
 def run_simulation_ext_force():
+    # Body setup
     klOO = np.array([1, 0, 0]).reshape(3, 1)
     H_type1 = "spherical"
     H_type2 = "spherical"
 
-    # Mass & Inertia Targeting (m = rho * w * h * L)
-    # We want exactly 1 kg. Since L1 = L2 = 1, we can set w=0.1, h=0.1 (A=0.01) and rho=100.
+    # Properties to match m = 1kg exactly as done in _RigidFlexComparison.py
     w, h = 0.1, 0.1
+    rho = 100.0
 
-    m = 1
-
-    L = np.linalg.norm(klOO)
-    CkJk = np.array([1/12 * m * (h**2 + w**2), 1/12 * m * (h**2 + L**2), 1/12 * m * (w**2 + L**2)])
-    
-    klOC = klOO / 2
+    # Flex properties 
+    E, G, c = 230e6, 80e6, 0.02
+    n_nd = 3 # 3 nodes -> node 1 is exactly at the COM (0.5)
+    n_md = 0 # Zero modes -> Body behaves completely rigidly
 
     j1 = Joint(klOO, H_type1)
-    i1 = Inertia(m, CkJk, klOC)
-    b1 = SOABody(j1, i1)
+    r1 = Rigid_Properties(rho, w, h)
+    f1 = Flex_Properties(E, G, c, n_nd, n_md)
+    b1 = SOABody(j1, r1, f1)
 
     j2 = Joint(klOO, H_type2)
-    i2 = Inertia(m, CkJk, klOC)
-    b2 = SOABody(j2, i2)
+    r2 = Rigid_Properties(rho, w, h)
+    f2 = Flex_Properties(E, G, c, n_nd, n_md)
+    b2 = SOABody(j2, r2, f2)
 
     b1.set_initial_theta0(sb.get_quat_from_degrees(0, 0, 90))
-    
-    # External force
-    F_ext1 = [np.array([0, 1, -3, 0, -2, 1.5]).reshape(6, 1)]
-    klOB1 = [np.array([0.5, 0, 0]).reshape(3, 1)]
-    b1.set_F_ext(F_ext1, klOB1)
 
-    F_ext2 = [np.array([0, -1, 0.5, 0, -1, 2]).reshape(6, 1)]
-    klOB2 = [np.array([0.5, 0, 0]).reshape(3, 1)]
-    b2.set_F_ext(F_ext2, klOB2)
+    # External forces
+    F_ext1 = np.array([0, 1, -3, 0, -2, 1.5]).reshape(6, 1)
+    b1.set_F_ext(node=1, F_ext=F_ext1) # Node 1 is COM
+
+    F_ext2 = np.array([0, -1, 0.5, 0, -1, 2]).reshape(6, 1)
+    b2.set_F_ext(node=1, F_ext=F_ext2) # Node 1 is COM
 
     bodies = [b1, b2]
     system = MultibodySystem(bodies)
@@ -131,29 +131,22 @@ def run_simulation_ext_force():
     # Time
     tf = 10
     dt = 0.01
-    nt = int(tf/dt + 1)
 
     # Simulation
     sim = Simulation(system, tf, dt)
-    sim.camera_speed(0)
-    sim.IntegrateSystem()
-    #sim.animate()
+    sim.set_camera_speed(0)
 
-    # Mass matrix at COM
-    n = len(system.bodies)
-    MC = [None] * n
+    # We use RK45 settings matching the rigid/flex comparison script
+    sim.set_max_step(dt)
+    sim.set_tol(1e-8, 1e-10)
+    sim.IntegrateSystem("Radau")
 
-    for j in range(n):
-        # Fetching the corrected self.MC from the Inertia class
-        MC[j] = system.bodies[j].inertia.MC
-
-    # Velocities
-    V_list = sim.get_V()
-    nt = len(V_list) # Total number of time steps
-
-    # Position
-    Pos_list = sim.get_pos()
+    # Extract Results
+    t_vector = sim.data.time
+    V_list = sim.get_V_fl()
+    Pos_list = sim.nNodalPos()
     g = 9.81
+    n = len(bodies)
 
     # List to store the total energy
     KE_list = []
@@ -162,27 +155,29 @@ def run_simulation_ext_force():
     P_list = []
 
     # Energy
-    for i in range(nt):
+    for i in range(len(t_vector)):
         total_KE = 0
         total_PE = 0
         total_Power = 0
         
         for j in range(n):
+            body = system.bodies[j]
+            V_j = V_list[i][j]
+            M_fl = body.flex.M_fl
+            
             # Kinetic energy
-            klOC = system.bodies[j].inertia.klOC
-            VC_j = sb.phi(klOC).T @ V_list[i][j]
-            KE_j = 0.5 * (VC_j.T @ MC[j] @ VC_j).item()
+            KE_j = 0.5 * (V_j.T @ M_fl @ V_j).item()
             total_KE += KE_j
 
             # Potential energy
-            m = system.bodies[j].inertia.m
-            z = (Pos_list[i][j][2].item() + Pos_list[i][j+1][2].item()) / 2
-            PE_j = z*g*m
+            m = body.m
+            z = Pos_list[i][j][1][2].item()
+            PE_j = z * g * m
             total_PE += PE_j
 
             # Work
-            F_ext_j = system.bodies[j].force.sum_phi_F_ext
-            V_j = V_list[i][j]
+            # Ext force mapped natively into root body coordinates 
+            F_ext_j = body.get_F_ext_term(sim.data.state[i], t_vector[i])
             Power_j = (F_ext_j.T @ V_j).item()
             total_Power += Power_j
 
@@ -190,8 +185,6 @@ def run_simulation_ext_force():
         PE_list.append(total_PE)
         E_list.append(total_KE + total_PE)
         P_list.append(total_Power)
-
-    t_vector = sim.data.time
 
     W_list = cumulative_trapezoid(P_list, x=t_vector, initial=0)
 
@@ -204,26 +197,6 @@ def run_simulation_ext_force():
 # Results
 t_no_force, E_no_force = run_simulation_no_force()
 t_ext_force, E_ext_force, Theoretical_Energy = run_simulation_ext_force()
-"""
-# Plotting
-plt.figure(figsize=(10, 6))
-    
-# Standard Pendulum Energy
-plt.plot(t_no_force, E_no_force, label="Total Energy (No External Force)", color='green', linewidth=3)
-    
-# Pendulum with External Force Energy
-plt.plot(t_ext_force, E_ext_force, label="Total Energy (External Force)", color='blue', linewidth=3)
-    
-# Theoretical Energy of External Force Pendulum
-plt.plot(t_ext_force, Theoretical_Energy, label="Theoretical Energy (Initial + Work)", color='orange', linestyle='--', linewidth=2)
-
-plt.title("Energy Analysis of 2-Body-Pendulums", fontsize=14)
-plt.xlabel("Time (s)", fontsize=14)
-plt.ylabel("Energy or Work (J)", fontsize=14)
-plt.grid(True)
-plt.legend(fontsize=12)
-plt.show()
-"""
 
 # Plotting
 fig, ax1 = plt.subplots(figsize=(10, 6))
@@ -246,7 +219,7 @@ ax2.tick_params(axis='y', labelcolor='blue')
 
 # --- ALIGN ZERO LINES ---
 # 1. Lock left y-axis minimum
-y1_min = -2e-6
+y1_min = -2e-8
 
 # 2. Get current data bounds to ensure no data is cut off
 _, y1_max = ax1.get_ylim()
@@ -286,5 +259,5 @@ lines = line1 + line2 + line3
 labels = [l.get_label() for l in lines]
 ax1.legend(lines, labels, fontsize=12, loc='upper left')
 
-plt.title("Energy Analysis of 2-Body-Pendulum", fontsize=15)
+plt.title(r"Energy Analysis of 2-Body-Pendulum ($n_{md}=0$)", fontsize=15)
 plt.show()

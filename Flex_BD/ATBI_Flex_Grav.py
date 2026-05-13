@@ -15,6 +15,13 @@ class ATBI_Flex:
         # Spatial gravity
         self.g = np.array([0, 0, 0, 0, 0, 9.81]).reshape(6, 1)
 
+        # Operators
+        self.A_fl = [None] * self.n
+
+        for k in range(self.n):
+            body = bodies[k]
+            self.A_fl[k] = sb.get_A(body.flex.PI_end, body.joint.klOO)
+
     def scatter_kinematics(self, state: SystemState):
         # Step 1 of ATBI (scatter sweep): Takes state and returns velocities, pose, Coriolis- and gyroscopic
         # terms
@@ -25,11 +32,11 @@ class ATBI_Flex:
         # Set up lists
         X = [None] * n
         V = [None] * n
-        A_fl = [None] * n
         V_f = [None] * n
         V_r = [None] * n
         a_fl = [None] * n
         b_fl = [None] * n
+        A_fl = self.A_fl
 
         for k in reversed(range(n)):
             # Parameters of the body
@@ -46,10 +53,7 @@ class ATBI_Flex:
 
             # Build X
             X[k], q = joint.get_theta2X(theta)
-
-            # Build A: NB! Typo in text?!?!
             R3 = sb.q2R(q.flatten(), 3)
-            A_fl[k] = sb.get_A(PI, X[k][4:7])
 
             if k == n - 1:
                 # Base body
@@ -98,6 +102,7 @@ class ATBI_Flex:
         nu_m = [None] * n
         nu_pr = [None] * n
         z_pr_plus = [None] * n
+        A_fl = self.A_fl
 
         for k in range(n):
             # Parameters of the body
@@ -153,11 +158,9 @@ class ATBI_Flex:
                 # Rotation
                 R6 = sb.q2R(q.flatten(), 6)
 
-                A_fl = sb.get_A(PI, klOO)
-
                 # Gather loop for k > 0 (Not tip)
                 Gamma_fl = R6 @ P_pr_plus[k-1] @ R6.T  # ?!?!?!?
-                P_fl = A_fl @ Gamma_fl @ A_fl.T + M_fl
+                P_fl = A_fl[k] @ Gamma_fl @ A_fl[k].T + M_fl
                 # D_m[k] = H_M_fl @ P_fl @ H_M_fl.T
                 # mu_fl = P_fl[-6:, :] @ H_M_fl.T
                 D_m[k] = P_fl[:n_md, :n_md]
@@ -171,7 +174,7 @@ class ATBI_Flex:
                 tau_pr_bar = np.eye(6, 6) - G_pr[k] @ H_B
                 P_pr_plus[k] = tau_pr_bar @ P_pr[k]
 
-                z = A_fl @ R6 @ z_pr_plus[k-1] + b_fl[k] + K_fl @ np.vstack([eta, np.zeros(
+                z = A_fl[k] @ R6 @ z_pr_plus[k-1] + b_fl[k] + K_fl @ np.vstack([eta, np.zeros(
                     (6, 1))]) - F_ext_term + C_fl @ np.vstack([eta_dot, np.zeros((6, 1))])
                 eps_m = - z[0:n_md]  # tau_m (assumed to be zero): dim(n_md, 1)
                 nu_m[k] = D_m_inv @ eps_m
@@ -193,7 +196,7 @@ class ATBI_Flex:
         alpha_fl = [None] * n
         theta_ddot = [None] * n
         eta_ddot = [None] * n
-        A_fl = [None] * n
+        A_fl = self.A_fl
 
         # Spatial gravity rotation setup
         Ri = [None] * (n + 1)
@@ -214,8 +217,6 @@ class ATBI_Flex:
             R3 = sb.q2R(q.flatten(), 3)
             R6 = sb.q2R(q.flatten(), 6)
             # R_tot = sb.get_R_tot(R6, n_md)
-
-            A_fl[k] = sb.get_A(PI, X[k][4:7])
 
             if k == n - 1:
                 alpha_base = R6.T @ self.g
