@@ -660,11 +660,18 @@ class Structural_Analysis_BD_Rect:
         return np.vstack([rw1, rw2, rw3])
 
     def get_C_fl(self):
+        """
+        Stiffness-proportional Rayleigh damping.
 
-        # Damping setup
-        zeta = self.c * np.ones(self.n_md)
+        C_st = beta * K_st
 
-        C_eta = np.diag(2.0 * zeta * self.omega)
+        In modal coordinates, assuming mass-normalized modes:
+            C_eta = beta * Omega^2
+        """
+
+        beta = self.c   # Rayleigh stiffness-proportional coefficient [s]
+
+        C_eta = np.diag(beta * self.omega2)
 
         C_fl = np.zeros_like(self.K_fl)
         C_fl[:self.n_md, :self.n_md] = C_eta
@@ -1861,7 +1868,7 @@ if __name__ == "__main__":
     
     def pulse_force(t, state, body):
         if  0.0<= t <= 0.02:
-            return np.array([0, 0, 0, 0, 0, 1000]).reshape(6, 1)
+            return np.array([0, 0, 0, 0, 0, 500]).reshape(6, 1)
         else:
             return np.zeros((6, 1))
 
@@ -1890,7 +1897,7 @@ if __name__ == "__main__":
  
     system = MultibodySystem(bodies)
 
-    tf = 0.6
+    tf = 0.4
     dt = 0.001
     sim = Simulation(system, tf, dt)
 
@@ -1933,7 +1940,92 @@ if __name__ == "__main__":
 
     from scipy.fft import rfft, rfftfreq
     from scipy.signal import find_peaks
-    
+
+    """
+    # Geometric stiffning validation
+
+    # -------------------------------------------------
+    # FFT analysis of u_z at end node
+    # -------------------------------------------------
+
+    # Get body, state and time
+    body = sim.system.bodies[0]
+    state = sim.get_state()
+    t = np.asarray(sim.data.time)
+
+    # Select end node
+    node = body.flex.n_nd - 1
+
+    # Mode shape matrix
+    PI = body.flex.PI
+
+    # -------------------------------------------------
+    # Extract u_z deformation history
+    # Spatial/nodal order:
+    # [theta_x, theta_y, theta_z, u_x, u_y, u_z]
+    # -------------------------------------------------
+    u_z_hist = []
+
+    for s in state:
+        eta = s.Eta[0]
+        u_node = PI[6*node : 6*node + 6, :] @ eta
+        u_z_hist.append(u_node[5, 0])   # u_z component
+
+    u_z_hist = np.asarray(u_z_hist)
+
+    # -------------------------------------------------
+    # FFT
+    # -------------------------------------------------
+    t_impulse_end = 0.05
+
+    mask = t >= t_impulse_end
+
+    t_fft = t[mask]
+    u_z_fft = u_z_hist[mask]
+
+    # Reset time so FFT signal starts at t = 0
+    t_fft = t_fft - t_fft[0]
+
+    # -------------------------------------------------
+    # FFT
+    # -------------------------------------------------
+    dt_fft = np.mean(np.diff(t_fft))
+    frequency_hz = rfftfreq(len(t_fft), dt_fft)
+
+    # Remove mean value
+    u_z_centered = u_z_fft - np.mean(u_z_fft)
+
+
+    # Optional window to reduce spectral leakage
+    window = np.hanning(len(u_z_centered))
+    u_z_windowed = u_z_centered * window
+
+    # Compute one-sided FFT
+    amplitude = np.abs(rfft(u_z_windowed))
+
+    # Normalize amplitude
+    if np.max(amplitude) > 0:
+        amplitude_normalized = amplitude / np.max(amplitude)
+    else:
+        amplitude_normalized = amplitude
+
+    # -------------------------------------------------
+    # Save CSV
+    # -------------------------------------------------
+    fft_response = pd.DataFrame({
+        "frequency_hz": frequency_hz,
+        "amplitude": amplitude,
+        "amplitude_normalized": amplitude_normalized
+    })
+
+    fft_response.to_csv("fft_response.csv", index=False)
+
+    print("Saved FFT response to fft_response.csv")
+
+
+
+    """
+  
     # FFT analysis
     # -------------------------------------------------
     # Settings
@@ -2036,13 +2128,13 @@ if __name__ == "__main__":
     peak_rows = []
 
     for name in signals.keys():
-        amp_norm = fft_data[f"{name}_amp_norm"].to_numpy()
+        amp = fft_data[f"{name}_amp"].to_numpy()
 
         # Only search peaks inside selected frequency range
         valid = (freq >= f_min_peak) & (freq <= f_max_peak)
 
         peaks, properties = find_peaks(
-            amp_norm[valid],
+            amp[valid],
             height=peak_min_height,
             prominence=peak_min_prominence,
             distance=peak_min_distance_samples
@@ -2070,7 +2162,7 @@ if __name__ == "__main__":
             })
 
     peak_data = pd.DataFrame(peak_rows)
-    peak_data.to_csv("fft_detected_peaks.csv", index=False)
+    peak_data.to_csv("fft_detected_peaks1.csv", index=False)
 
     print("Saved detected FFT peaks to fft_detected_peaks.csv")
     print(peak_data)
@@ -2085,7 +2177,7 @@ if __name__ == "__main__":
     for name in translation_signals:
         plt.plot(
             freq,
-            fft_data[f"{name}_amp_norm_log"],
+            fft_data[f"{name}_amp"],
             linewidth=2.0,
             label=rf"${name}$"
         )
@@ -2094,7 +2186,7 @@ if __name__ == "__main__":
 
         plt.scatter(
             signal_peaks["frequency_hz"],
-            signal_peaks["amplitude_norm"],
+            signal_peaks["amplitude"],
             s=35,
             marker="o"
         )
@@ -2102,7 +2194,7 @@ if __name__ == "__main__":
         for _, row in signal_peaks.iterrows():
             plt.annotate(
                 f"{row['frequency_hz']:.1f} Hz",
-                xy=(row["frequency_hz"], row["amplitude_norm"]),
+                xy=(row["frequency_hz"], row["amplitude"]),
                 xytext=(4, 6),
                 textcoords="offset points",
                 fontsize=8,
@@ -2123,7 +2215,7 @@ if __name__ == "__main__":
     plt.legend(fontsize=11)
     plt.tight_layout()
 
-    plt.savefig("fft_translations.png", dpi=300)
+    plt.savefig("fft_translations1.png", dpi=300)
     plt.show()
 
     # -------------------------------------------------
@@ -2138,7 +2230,7 @@ if __name__ == "__main__":
 
         plt.plot(
             freq,
-            fft_data[f"{name}_amp_norm_log"],
+            fft_data[f"{name}_amp"],
             linewidth=2.0,
             label=rf"${label}$"
         )
@@ -2147,7 +2239,7 @@ if __name__ == "__main__":
 
         plt.scatter(
             signal_peaks["frequency_hz"],
-            signal_peaks["amplitude_norm"],
+            signal_peaks["amplitude"],
             s=35,
             marker="o"
         )
@@ -2155,7 +2247,7 @@ if __name__ == "__main__":
         for _, row in signal_peaks.iterrows():
             plt.annotate(
                 f"{row['frequency_hz']:.1f} Hz",
-                xy=(row["frequency_hz"], row["amplitude_norm"]),
+                xy=(row["frequency_hz"], row["amplitude"]),
                 xytext=(4, 6),
                 textcoords="offset points",
                 fontsize=8,
@@ -2176,5 +2268,5 @@ if __name__ == "__main__":
     plt.legend(fontsize=11)
     plt.tight_layout()
 
-    plt.savefig("fft_rotations.png", dpi=300)
+    plt.savefig("fft_rotations1.png", dpi=300)
     plt.show()

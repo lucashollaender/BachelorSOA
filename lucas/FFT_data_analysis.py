@@ -1,8 +1,8 @@
+from pathlib import Path
+import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
-from pathlib import Path
 from scipy.signal import find_peaks
-import numpy as np
 
 # -------------------------------------------------
 # Files
@@ -17,8 +17,8 @@ label_2 = "Without axial load"
 # Settings
 # -------------------------------------------------
 f_min_plot = 0
-f_max_plot = 300
-amp_floor = 1e-11
+f_max_plot = 100
+amp_floor = 1e-6
 
 # -------------------------------------------------
 # Load data
@@ -26,48 +26,47 @@ amp_floor = 1e-11
 df1 = pd.read_csv(file_1)
 df2 = pd.read_csv(file_2)
 
-required_cols = {"frequency_hz", "amplitude", "amplitude_normalized"}
-for file, df in [(file_1, df1), (file_2, df2)]:
-    missing = required_cols - set(df.columns)
-    if missing:
-        raise ValueError(f"{file} is missing columns: {missing}")
+# -------------------------------------------------
+# Global normalization
+# -------------------------------------------------
+global_max = max(df1["amplitude"].max(), df2["amplitude"].max())
 
-# Clip normalized amplitude for semilog plotting
-df1["amplitude_normalized_log"] = np.maximum(
-    df1["amplitude_normalized"].to_numpy(),
-    amp_floor
-)
-df2["amplitude_normalized_log"] = np.maximum(
-    df2["amplitude_normalized"].to_numpy(),
-    amp_floor
-)
+df1["amplitude_global_norm"] = df1["amplitude"] / global_max
+df2["amplitude_global_norm"] = df2["amplitude"] / global_max
+
 
 # -------------------------------------------------
 # Helper function for peak detection
 # -------------------------------------------------
-def get_main_peaks(df, amp_col, f_min=1, f_max=300, min_height=1e-6, distance=20):
+def get_main_peaks(df, amp_col, f_min=1, f_max=300, min_height=1e-7, distance=10):
     mask = (df["frequency_hz"] >= f_min) & (df["frequency_hz"] <= f_max)
+
     f = df.loc[mask, "frequency_hz"].to_numpy()
     a = df.loc[mask, amp_col].to_numpy()
 
-    peaks, _ = find_peaks(a, height=min_height, distance=distance)
+    peaks, _ = find_peaks(
+        a,
+        height=min_height,
+        distance=distance
+    )
+
     return f[peaks], a[peaks]
 
 # -------------------------------------------------
-# Semilog plot: normalized amplitude
+# Plot: globally normalized amplitude
 # -------------------------------------------------
 plt.figure(figsize=(10, 5.5))
 
-plt.semilogy(
+plt.plot(
     df1["frequency_hz"],
-    df1["amplitude_normalized_log"],
+    df1["amplitude_global_norm"],
     linewidth=2.0,
     label=label_1
 )
 
-plt.semilogy(
+plt.plot(
     df2["frequency_hz"],
-    df2["amplitude_normalized_log"],
+    df2["amplitude_global_norm"],
     linewidth=2.0,
     linestyle="--",
     label=label_2
@@ -76,63 +75,9 @@ plt.semilogy(
 for df in [df1, df2]:
     f_peaks, a_peaks = get_main_peaks(
         df,
-        amp_col="amplitude_normalized",
-        min_height=1e-6
-    )
-
-    for f, a in zip(f_peaks, a_peaks):
-        if a >= amp_floor:
-            plt.plot(f, max(a, amp_floor), "o", markersize=4)
-            plt.text(
-                f,
-                max(a * 1.4, amp_floor * 1.4),
-                f"{f:.1f} Hz",
-                rotation=90,
-                fontsize=8,
-                ha="center",
-                va="bottom"
-            )
-
-plt.xlim(f_min_plot, f_max_plot)
-plt.ylim(amp_floor, 1.2)
-
-plt.xlabel("Frequency [Hz]", fontsize=12)
-plt.ylabel("Normalized amplitude [-]", fontsize=12)
-plt.title("FFT comparison of flexible-body response", fontsize=14)
-
-plt.grid(True, which="both", linestyle=":", linewidth=0.8)
-plt.legend(fontsize=11)
-plt.tight_layout()
-
-plt.savefig("fft_comparison_semilog_normalized.png", dpi=300)
-
-plt.show()
-
-# -------------------------------------------------
-# Linear plot: raw amplitude
-# -------------------------------------------------
-plt.figure(figsize=(10, 5.5))
-
-plt.plot(
-    df1["frequency_hz"],
-    df1["amplitude"],
-    linewidth=2.0,
-    label=label_1
-)
-
-plt.plot(
-    df2["frequency_hz"],
-    df2["amplitude"],
-    linewidth=2.0,
-    linestyle="--",
-    label=label_2
-)
-
-for df in [df1, df2]:
-    f_peaks, a_peaks = get_main_peaks(
-        df,
-        amp_col="amplitude",
-        min_height=0.0001 * df["amplitude"].max()
+        amp_col="amplitude_global_norm",
+        min_height=1e-5,
+        distance=10
     )
 
     for f, a in zip(f_peaks, a_peaks):
@@ -151,13 +96,80 @@ plt.xlim(f_min_plot, f_max_plot)
 plt.ylim(bottom=0)
 
 plt.xlabel("Frequency [Hz]", fontsize=12)
-plt.ylabel("Amplitude [-]", fontsize=12)
+plt.ylabel("Globally normalized amplitude [-]", fontsize=12)
 plt.title("FFT comparison of flexible-body response", fontsize=14)
 
 plt.grid(True, linestyle=":", linewidth=0.8)
 plt.legend(fontsize=11)
 plt.tight_layout()
 
-plt.savefig("fft_comparison_linear_amplitude.png", dpi=300)
+plt.savefig("fft_comparison_global_normalized_amplitude.png", dpi=300)
+plt.show()
 
+# -------------------------------------------------
+# Plot: globally normalized amplitude, semilog y-axis
+# -------------------------------------------------
+
+# Apply floor to avoid log(0)
+df1["amplitude_global_norm_log"] = np.maximum(
+    df1["amplitude_global_norm"],
+    amp_floor
+)
+
+df2["amplitude_global_norm_log"] = np.maximum(
+    df2["amplitude_global_norm"],
+    amp_floor
+)
+
+plt.figure(figsize=(10, 5.5))
+
+plt.semilogy(
+    df1["frequency_hz"],
+    df1["amplitude_global_norm_log"],
+    linewidth=2.0,
+    label=label_1
+)
+
+plt.semilogy(
+    df2["frequency_hz"],
+    df2["amplitude_global_norm_log"],
+    linewidth=2.0,
+    linestyle="--",
+    label=label_2
+)
+
+for df in [df1, df2]:
+    f_peaks, a_peaks = get_main_peaks(
+        df,
+        amp_col="amplitude_global_norm",
+        min_height=1e-5,
+        distance=10
+    )
+
+    for f, a in zip(f_peaks, a_peaks):
+        a_plot = max(a, amp_floor)
+
+        plt.plot(f, a_plot, "o", markersize=4)
+        plt.text(
+            f,
+            a_plot * 1.3,
+            f"{f:.1f} Hz",
+            rotation=90,
+            fontsize=8,
+            ha="center",
+            va="bottom"
+        )
+
+plt.xlim(f_min_plot, f_max_plot)
+plt.ylim(amp_floor, 1.2)
+
+plt.xlabel("Frequency [Hz]", fontsize=12)
+plt.ylabel("Globally normalized amplitude [-]", fontsize=12)
+plt.title("FFT comparison of flexible-body response, semilog scale", fontsize=14)
+
+plt.grid(True, which="both", linestyle=":", linewidth=0.8)
+plt.legend(fontsize=11)
+plt.tight_layout()
+
+plt.savefig("fft_comparison_global_normalized_amplitude_semilog.png", dpi=300)
 plt.show()
