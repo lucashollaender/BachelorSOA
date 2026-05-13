@@ -38,7 +38,7 @@ def build_two_body_flexible_soa_model():
 
     # Flexible discretization
     n_nd = 10     # number of nodes
-    n_md = 6      # number of retained flexible modes
+    n_md = 6     # number of retained flexible modes
 
     j1 = Joint(klOO1, H_type1)
     r1 = Rigid_Properties(rho, w, h)
@@ -51,7 +51,7 @@ def build_two_body_flexible_soa_model():
     b1 = SOABody(j1, r1, f1)
     b2 = SOABody(j2, r2, f2)
 
-    system = MultibodySystem([b1, b2])
+    system = MultibodySystem([b1, b2, b1, b1, b1, b1])
 
     # Match AdamsComparison.py style
     tf = 10
@@ -60,7 +60,8 @@ def build_two_body_flexible_soa_model():
     sim = Simulation(system, tf, dt)
     sim.set_max_step(dt)
 
-    sim.animate_nodes()
+    # sim.IntegrateSystem("Radau")
+    # sim.animate_nodes()
 
     # Optional: set solver tolerances. Uncomment if you want a stricter test.
     # sim.set_tol(atol=1e-8, rtol=1e-10)
@@ -145,5 +146,5 @@ if __name__ == "__main__":
     results = time_soa_simulation(solver="Radau")
     print_timing_report(results)
 
-AdamsElapsed = [3.31, 3.41, 3.51]
-SOAElapsed = [2.48, 14.63]
+AdamsElapsed = [3.31, 3.41, 3.51, 3.87, 3.99, 4.09]
+SOAElapsed = [2.48, 14.63, 51.85, 75.20, 179.34]
