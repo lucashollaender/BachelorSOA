@@ -8,6 +8,7 @@ import time
 import types
 import importlib.util
 import numpy as np
+import matplotlib.pyplot as plt
 
 
 # ---------------------------------------------------------------------
@@ -51,7 +52,7 @@ def build_two_body_flexible_soa_model():
     b1 = SOABody(j1, r1, f1)
     b2 = SOABody(j2, r2, f2)
 
-    system = MultibodySystem([b1, b2, b1, b1, b1, b1])
+    system = MultibodySystem([b1, b2, b1, b1, b1])
 
     # Match AdamsComparison.py style
     tf = 10
@@ -147,4 +148,15 @@ if __name__ == "__main__":
     print_timing_report(results)
 
 AdamsElapsed = [3.31, 3.41, 3.51, 3.87, 3.99, 4.09]
-SOAElapsed = [2.48, 14.63, 51.85, 75.20, 179.34]
+SOAElapsed = [2.48, 14.63, 44.39, 74.73, 179.34, 520.77]
+
+# X-vector for plotting
+X = np.arange(len(AdamsElapsed))
+
+plt.plot(X, AdamsElapsed, label='Adams')
+plt.plot(X, SOAElapsed, label='SOA')
+
+plt.xlabel('Bodies')
+plt.ylabel('Computation time')
+plt.legend()
+plt.show()

@@ -7,8 +7,9 @@ from Structural_Analysis_BD_Rect import Structural_Analysis_BD_Rect
 from Body_Properties import Joint, Rigid_Properties, Flex_Properties
 import pandas as pd
 
+
 class SOABody:
-    
+
     # ----- Forces -----
     class Force:
         def __init__(self, joint: Joint):
@@ -20,7 +21,7 @@ class SOABody:
 
     def set_tau(self, tau):
         self.force.tau = tau
-    
+
     def set_F_ext(self, node=-1, F_ext=None, F_fun=None):
         """
         Add external spatial force/moment at a selected node.
@@ -53,8 +54,8 @@ class SOABody:
             force_function = F_fun
 
         self.force.F_ext.append({
-        "node": int(node),
-        "fun": force_function
+            "node": int(node),
+            "fun": force_function
         })
 
     def get_node_position(self, node):
@@ -88,7 +89,7 @@ class SOABody:
             F_j = load["fun"](t, state).reshape(6, 1)
 
             # Mode-shape block for selected node
-            PI_j = PI[6*node : 6*node + 6, :]
+            PI_j = PI[6*node: 6*node + 6, :]
 
             # Vector from body reference to selected node
             r_j = self.get_node_position(node)
@@ -110,13 +111,13 @@ class SOABody:
 
         # Torsional spring
         if joint_type.startswith("rev"):
-                return - k_TS * (theta - theta0_TS) - c_TS * beta
+            return - k_TS * (theta - theta0_TS) - c_TS * beta
         elif joint_type == "spherical":
-                return np.zeros((3, 1)) # Not implemented for spherical joint
+            return np.zeros((3, 1))  # Not implemented for spherical joint
         elif joint_type == "fixed":
-                return np.zeros((0, 1))
-    
-    def set_impulse_force(self, ts, dt, F_impulse, node=-1):        
+            return np.zeros((0, 1))
+
+    def set_impulse_force(self, ts, dt, F_impulse, node=-1):
         # Define the time-dependent function
         def impulse_fun(t, state):
             if ts <= t <= (ts + dt):
@@ -125,7 +126,7 @@ class SOABody:
                 return F_impulse
             else:
                 return np.zeros((6, 1))
-                
+
         # Pass the function to the existing external force handler
         self.set_F_ext(node=node, F_fun=impulse_fun)
 
@@ -137,7 +138,7 @@ class SOABody:
         b_eta = np.zeros((n_md, 1))
         b_r = sb.skew6(V) @ deltaV - sb.bar6(deltaV) @ deltaV
         return np.vstack([b_eta, b_r])
-    
+
     def gyroscopic(self, V, M):
         return sb.bar6(V) @ M @ V
 
@@ -155,19 +156,27 @@ class SOABody:
 
         # Modal integrals
         p_0 = body.flex.p_0
-        #F_1 = body.flex.F_1
+        # F_1 = body.flex.F_1
         J_0 = body.flex.J_0
         J_1 = body.flex.J_1
         S_1 = body.flex.S_1
 
         omega = V_r[0:3, :]
 
-        b_eta = np.zeros((n_md, 1))
+        # b_eta = np.zeros((n_md, 1))
 
-        for i in range(n_md):
-            b_eta[i] = - omega.T @ (S_1[:, 3 * i: 3 * i + 3] + J_1[:, 3 * i: 3 * i + 3]) @ omega
+        # for i in range(n_md):
+        # b_eta[i] = - omega.T @ (S_1[:, 3 * i: 3 * i + 3] + J_1[:, 3 * i: 3 * i + 3]) @ omega
 
-        return np.vstack([b_eta, sb.skew(omega) @ J_0 @ omega, m * sb.skew(omega) @ sb.skew(omega) @ p_0])
+        # A[m, :, :] = S_1[:, 3*m:3*m+3] + J_1[:, 3*m:3*m+3]
+        A = (S_1 + J_1).reshape(3, n_md, 3).transpose(1, 0, 2)
+
+        # b_eta[m] = - omega.T @ A[m] @ omega
+        b_eta = -(omega.T @ A @ omega).reshape(n_md, 1)
+
+        omega_skew = sb.skew(omega)
+
+        return np.vstack([b_eta, omega_skew @ J_0 @ omega, m * omega_skew @ omega_skew @ p_0])
 
     # ----- Initial Conditions -----
     class InitialCondition:
@@ -186,13 +195,13 @@ class SOABody:
 
     def set_initial_theta0(self, theta0):
         self.initialcondition.theta0 = theta0
-    
+
     def set_initial_beta0(self, beta0):
         self.initialcondition.beta0 = beta0
 
     def set_initial_eta0(self, eta0):
         self.initialcondition.eta0 = eta0
-    
+
     def set_initial_eta_dot0(self, eta_dot0):
         self.initialcondition.eta_dot0 = eta_dot0
 
@@ -208,9 +217,9 @@ class SOABody:
 
         v = np.cross(i_hat, u_hat)
         c = np.dot(i_hat, u_hat)
-        
+
         v_skew = sb.skew(v)
-        
+
         R = np.eye(3) + v_skew + (v_skew @ v_skew) * (1 / (1 + c))
         return R
 
@@ -233,7 +242,7 @@ class SOABody:
         self.flex.n_md = body_analysis.n_md
 
         # Stiffness, damping and mass matrix
-        self.flex.K_fl = R_modal @ body_analysis.K_fl @ R_modal.T 
+        self.flex.K_fl = R_modal @ body_analysis.K_fl @ R_modal.T
         self.flex.M_fl = R_modal @ body_analysis.M_fl @ R_modal.T
         self.flex.C_fl = R_modal @ body_analysis.C_fl @ R_modal.T
 
@@ -264,7 +273,8 @@ class SOABody:
             self.flex.D_fl = np.zeros((6, 6))
         else:
             # Standard flexible body formulation
-            H_M_fl = np.hstack([np.eye(self.flex.n_md), np.zeros((self.flex.n_md, 6))])
+            H_M_fl = np.hstack(
+                [np.eye(self.flex.n_md), np.zeros((self.flex.n_md, 6))])
             A_fl = sb.get_A(self.flex.PI_end, self.joint.klOO)
             self.flex.L_fl = la.inv(H_M_fl @ self.flex.M_fl @ H_M_fl.T)
             zeta = H_M_fl @ A_fl
@@ -275,11 +285,12 @@ class SOABody:
         # Calculate D_m_inv
         if self.flex.n_md == 0:
             return np.zeros((0, 0))
-            
+
         if type == "tip":
             Dminv = self.flex.L_fl
         elif type == "not_tip":
-            Dminv = self.flex.L_fl - self.flex.U_fl @ la.solve((np.eye(6, 6) + Gamma @ self.flex.D_fl), Gamma) @ self.flex.U_fl.T
+            Dminv = self.flex.L_fl - self.flex.U_fl @ la.solve(
+                (np.eye(6, 6) + Gamma @ self.flex.D_fl), Gamma) @ self.flex.U_fl.T
         return Dminv
 
     def __init__(self, joint: Joint, rigid: Rigid_Properties, flex: Flex_Properties):
@@ -291,7 +302,8 @@ class SOABody:
         rigid.A = rigid.h * rigid.w
         rigid.L = joint.L
         flex.L_elem = joint.L / flex.n_elem
-        flex.klOO_nd = [j * (joint.klOO / flex.n_elem) for j in range(flex.n_nd)]
+        flex.klOO_nd = [j * (joint.klOO / flex.n_elem)
+                        for j in range(flex.n_nd)]
         self.m = rigid.rho * rigid.A * joint.L
         self.rigid.CkJk = np.array([1/12 * self.m * (rigid.h**2 + rigid.w**2), 1/12 * self.m * (
             rigid.h**2 + joint.L**2), 1/12 * self.m * (rigid.w**2 + joint.L**2)])
@@ -302,12 +314,13 @@ class SOABody:
         body_analysis = Structural_Analysis_BD_Rect(joint, rigid, flex)
         # Modal Rotation
         self.get_body_analysis_rot(body_analysis)
-    
+
         # Initial Condition Setup
         self.initialcondition = self.InitialCondition(joint, self.flex)
 
         # D_m Inverse Offline Computation
         self.get_D_m_offline()
+
 
 """
 Without rotation to klOO:
