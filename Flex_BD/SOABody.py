@@ -161,7 +161,7 @@ class SOABody:
         J_1 = body.flex.J_1
         S_1 = body.flex.S_1
 
-        omega = V_r[0:3, :]
+        omega = V_r[0:3, :].reshape(3, 1)
 
         # b_eta = np.zeros((n_md, 1))
 
