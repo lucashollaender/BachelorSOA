@@ -391,9 +391,8 @@ class Structural_Analysis_BD_Rect:
     def get_C_fl(self):
 
         # Damping setup
-        zeta = self.c * np.ones(self.n_md)
-
-        C_eta = np.diag(2.0 * zeta * self.omega)
+        beta=self.c
+        C_eta = np.diag(beta * self.omega2)
 
         C_fl = np.zeros_like(self.M_fl)
         C_fl[:self.n_md, :self.n_md] = C_eta
