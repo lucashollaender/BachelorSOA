@@ -17,9 +17,10 @@ H_type2 = "spherical"
 E, G = 230e9, 80e9
 c = 0.0
 rho = 7850
-n_nd, n_md = 10, 0
+n_nd, n_md = 10, 10
 w, h = 0.04, 0.06
 
+"""
 # Properties for Body 1
 j1 = Joint(klOO1, H_type1)
 r1 = Rigid_Properties(rho, w, h)
@@ -30,6 +31,25 @@ b1 = SOABody(j1, r1, f1)
 j2 = Joint(klOO2, H_type2)
 r2 = Rigid_Properties(rho, w, h)
 f2 = Flex_Properties(E, G, c, n_nd, n_md)
+b2 = SOABody(j2, r2, f2)
+"""
+
+# Properties for Body 1
+j1 = Joint(klOO1, H_type1)
+r1 = Rigid_Properties(rho, w, h)
+f1 = Flex_Properties(E, G, c, n_nd, n_md, mode_selection={
+                     "bending_xy": 2,
+                     "bending_xz": 2,
+                     "axial_x": 1})
+b1 = SOABody(j1, r1, f1)
+
+# Properties for Body 2
+j2 = Joint(klOO2, H_type2)
+r2 = Rigid_Properties(rho, w, h)
+f2 = Flex_Properties(E, G, c, n_nd, n_md, mode_selection={
+                     "bending_xy": 2,
+                     "bending_xz": 2,
+                     "axial_x": 1})
 b2 = SOABody(j2, r2, f2)
 
 # Build system
@@ -43,7 +63,7 @@ dt = 0.01
 # Simulate
 sim = Simulation(system, tf, dt)
 sim.set_camera_speed(0)
-sim.set_tol(1e-10, 1e-12)
+sim.set_tol(1e-8, 1e-10)
 sim.set_max_step(dt)
 sim.IntegrateSystem("Radau")
 
