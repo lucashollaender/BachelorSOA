@@ -24,7 +24,7 @@ def build_flexible_soa_model(n_bodies=2):
     rho = 2740
 
     # Beam cross-section
-    w = 0.04
+    w = 0.06
     h = 0.04
 
     # Flexible discretization
@@ -41,8 +41,8 @@ def build_flexible_soa_model(n_bodies=2):
         joint = Joint(klOO, "revy")
         rigid = Rigid_Properties(rho, w, h)
         flex = Flex_Properties(E, G, c, n_nd, n_md, mode_selection={
-            "bending_xy": 2,
-            "axial": 1})
+            "bending_xy": 1,
+            "beding_xz": 1, })
 
         return SOABody(joint, rigid, flex)
 
@@ -145,7 +145,7 @@ if __name__ == "__main__":
 
     solver = "Radau"
 
-    n_body_values = np.arange(1, 3)
+    n_body_values = np.arange(1, 7)
 
     SOAElapsed = []
 
@@ -165,7 +165,7 @@ if __name__ == "__main__":
 
     # Plot elapsed time
     plt.figure()
-    plt.plot(n_body_values, AdamsElapsed[0:2], "o-", label="Adams elapsed")
+    plt.plot(n_body_values, AdamsElapsed[0:6], "o-", label="Adams elapsed")
     plt.plot(n_body_values, SOAElapsed, "o-", label="SOA elapsed")
 
     plt.xlabel("Number of bodies")
