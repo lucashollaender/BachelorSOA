@@ -140,6 +140,11 @@ def get_R_tot(R6, n_md):
     rw2 = np.hstack([np.zeros((6, n_md)), R6])
     return np.vstack([rw1, rw2])
 
+def get_R6(R3):
+    z3 = np.zeros((3, 3))
+    rw1 = np.hstack([R3, z3])
+    rw2 = np.hstack([z3, R3])
+    return np.vstack([rw1, rw2])
 
 def integrate_RK4(system, t0, tf, dt):
     """

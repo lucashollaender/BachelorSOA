@@ -6,6 +6,7 @@ from scipy.integrate import solve_ivp
 from Structural_Analysis_BD_Rect import Structural_Analysis_BD_Rect
 from Body_Properties import Joint, Rigid_Properties, Flex_Properties
 import pandas as pd
+from scipy.spatial.transform import Rotation
 
 
 class SOABody:
@@ -129,6 +130,57 @@ class SOABody:
 
         # Pass the function to the existing external force handler
         self.set_F_ext(node=node, F_fun=impulse_fun)
+    
+    # ----- Track -----
+    def get_track_kin(self, last_end, last_end_dot, X, R_i, V, eta, eta_dot):
+        # Parameters
+        PI = self.flex.PI
+        R3 = sb.q2R(X[0:4].flatten(), 3)
+        n_nd = self.flex.n_nd
+        klOO_nd = self.flex.klOO_nd
+
+        R_i = R_i @ R3
+
+        nodes_pos = []
+        nodes_V = []
+
+        for j in range(n_nd):
+            # Undeformed position in local frame
+            pos_und = klOO_nd[j]
+
+            # Translational deformation for node j
+            # (Translations are stored at indices j*6+3 to j*6+6 in the PI matrix)
+            s = eta
+            l = PI[j*6+3: j*6+6, :]
+            u_j = PI[j*6+3: j*6+6, :] @ eta
+
+            # Global position of node j
+            pos_glob = last_end + R_i @ (pos_und + u_j)
+            nodes_pos.append(pos_glob)
+            
+            # Velocities undeformed
+            V_und = sb.phi(klOO_nd[j]).T @ V
+            
+            # Deformation velocity
+            u_j_dot = PI[j*6+3: j*6+6, :] @ eta_dot
+
+            # Global velocity of node j
+            V_glob = last_end_dot + R_i @ (V_und + u_j_dot)
+            nodes_V.append(V_glob)
+        
+        return nodes_pos, nodes_V, R_i
+    
+    def end_z_spring(self, pos, pos_dot, R_i):
+        # Parameters
+        a = 2e3
+        b = 2e3
+
+        F_z = - a * pos[-1][2, 0] - b * pos_dot[-1][2, 0]
+        
+        R6 = sb.get_R6(R_i)
+        F_end = R6 @ np.array([0, 0, 0, 0, 0, F_z]).reshape(6, 1)
+
+        return F_end
 
     # ----- Coriolis acceleration and gyroscopic force -----
     # Rigid SOA:

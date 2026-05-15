@@ -129,10 +129,10 @@ class Simulation:
                 states[j].reshape(-1, 1), [b.joint for b in self.system.bodies], [b.flex for b in self.system.bodies])
 
             # Kinematic scatter loop to find X
-            X, V_fl, a_fl, b_fl = self.system.ATBI.scatter_kinematics(
+            X, V_fl, a_fl, b_fl, pos, pos_dot, R_i = self.system.ATBI.scatter_kinematics(
                 current_state)
             G_pr, nu_pr, nu_m, g_fl = self.system.ATBI.gather_ATBI(
-                current_state, a_fl, b_fl, X, self.data.time[i])
+                current_state, a_fl, b_fl, X, pos, pos_dot, R_i, self.data.time[i])
             _, _, alpha_fl = self.system.ATBI.scatter_ATBI(
                 a_fl, X, G_pr, nu_pr, nu_m, g_fl)
 
@@ -209,7 +209,8 @@ class Simulation:
 
             # Base rotation of the body
             q = X[k][0:4]
-            R_i = R_i @ sb.q2R(q.flatten(), 3)
+            R3 = sb.q2R(q.flatten(), 3)
+            R_i = R_i @ R3
 
             # Center of mass is represented by the middle node
             mid_idx = n_nd // 2
@@ -273,10 +274,11 @@ class Simulation:
                 nodes_k = []
 
                 # Unpancking X-vector
-                q = X[i][k][0:4]    # Quaternion: k+1 to k
+                q = X[i][k][0:4]    # Quaternion: k to k+1
+                R3 = sb.q2R(q.flatten(), 3)
 
                 # Rotation
-                R_i = R_i @ sb.q2R(q.flatten(), 3)
+                R_i = R_i @ R3
 
                 for j in range(n_nd):
                     # Undeformed position in local frame

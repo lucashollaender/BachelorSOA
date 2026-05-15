@@ -8,14 +8,14 @@ import pandas as pd
 import matplotlib.pyplot as plt
 
 klOO1 = np.array([-1, 0, 0]).reshape(3, 1)
-klOO2 = np.array([0, 0, -1]).reshape(3, 1)
-klOO3 = np.array([1, 0, 0]).reshape(3, 1)
-H_type1 = "fixed"
-H_type2 = "fixed"
+klOO2 = np.array([-1, 0, 0]).reshape(3, 1)
+klOO3 = np.array([-1, 0, 0]).reshape(3, 1)
+H_type1 = "revy"
+H_type2 = "revy"
 H_type3 = "revy"
 
 # n_md_max = (n_nd - 1) * 3
-E, G, c, rho, n_nd, n_md = 230e7, 80e7, 0.02, 7850, 11, 20
+E, G, c, rho, n_nd, n_md = 230e7, 80e7, 0.2, 7850, 11, 20
 
 w, h = 0.04, 0.06
 
@@ -55,19 +55,19 @@ K = b1.flex.K_fl
 M = b1.flex.M_fl
 
 # b1.set_TS(100, 100, np.pi)
-# F_ext1 = np.array([0, 0, 0, 0, 100, 100]).reshape(6, 1)
-# b1.set_F_ext(node=7, F_ext=F_ext1)
+#F_ext1 = np.array([0, 0, 0, 1e4, 0, 0]).reshape(6, 1)
+#b1.set_F_ext(node=-1, F_ext=F_ext1)
 
 # eta0 = np.vstack([np.array([5]), np.zeros((n_md-1, 1))]).reshape(6, 1)
 # eta0 = np.array([0, 0, 0, 0, 10, 0]).reshape(6, 1)
 # b1.set_initial_eta0(eta0)
 
-bodies = [b1]
+bodies = [b1, b2, b3]
 
 system = MultibodySystem(bodies)
 # system.set_gravity(True)
 
-tf = 10
+tf = 3
 dt = 0.01
 
 sim = Simulation(system, tf, dt)
@@ -84,40 +84,3 @@ save_dir = r"C:\Users\jepp6\OneDrive - Aarhus universitet\Dokumenter\Noter\6. Se
 
 # sim.animate_nodes(filename="Test1", save_dir=save_dir)
 sim.animate_nodes()
-
-"""
-state = sim.get_state()
-body = sim.system.bodies[0]
-
-PI_end = body.flex.PI_end
-ux_hist = []
-eta_hist=[]
-
-for s in state:
-    eta = s.Eta[0]
-    eta_hist.append(eta.flatten())
-    u = PI_end@ eta
-    ux_hist.append(u[3, 0])   # x deformation
-
-ux_hist = np.array(ux_hist)
-eta_hist = np.array(eta_hist)
-t = np.asarray(sim.data.time)
-plt.plot(t,ux_hist)
-plt.show()
-
-plt.plot(t,eta_hist)
-plt.show()
-
-print(pd.DataFrame(eta_hist))
-
-print("eigval")
-print(pd.DataFrame(b1.flex.eigval))
-print("K_fl")
-print(pd.DataFrame(b1.flex.K_fl))
-print("M_fl_red")
-print(pd.DataFrame(b1.flex.M_fl[-6:, -6:]))
-#print("M_fl")
-#print(pd.DataFrame(b1.flex.M_fl))
-"""
-# Problems:
-# F_1 in gyroscopic force
