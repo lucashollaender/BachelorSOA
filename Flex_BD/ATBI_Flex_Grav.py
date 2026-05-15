@@ -141,8 +141,8 @@ class ATBI_Flex:
                 tau_pr_bar = np.eye(6, 6) - G_pr[k] @ H_B
                 P_pr_plus[k] = tau_pr_bar @ P_pr[k]
 
-                z = b_fl[k] + K_fl[:n_md, :n_md] @ eta - \
-                    F_ext_term + C_fl[:n_md, :n_md] @ eta_dot
+                z = b_fl[k] +  K_fl @ np.vstack([eta, np.zeros((6, 1))]) - \
+                    F_ext_term + C_fl @ np.vstack([eta_dot, np.zeros((6, 1))])
                 eps_m = - z[0:n_md]  # tau_m (assumed to be zero): dim(n_md, 1)
                 nu_m[k] = D_m_inv @ eps_m
 
@@ -174,8 +174,8 @@ class ATBI_Flex:
                 tau_pr_bar = np.eye(6, 6) - G_pr[k] @ H_B
                 P_pr_plus[k] = tau_pr_bar @ P_pr[k]
 
-                z = A_fl[k] @ R6 @ z_pr_plus[k-1] + b_fl[k] + K_fl[:n_md, :n_md] @ eta - \
-                    F_ext_term + C_fl[:n_md, :n_md] @ eta_dot
+                z = A_fl[k] @ R6 @ z_pr_plus[k-1] + b_fl[k] + K_fl @ np.vstack([eta, np.zeros((6, 1))]) - \
+                    F_ext_term + C_fl @ np.vstack([eta_dot, np.zeros((6, 1))])
                 eps_m = - z[0:n_md]  # tau_m (assumed to be zero): dim(n_md, 1)
                 nu_m[k] = D_m_inv @ eps_m
 
