@@ -20,6 +20,11 @@ class SOABody:
             self.c_TS = 0
             self.theta0_TS = 0
 
+            # Track
+            self.z_springs = []  # Can hold multiple springs on different nodes
+            self.F_axial_global = np.zeros((6, 1))
+            self.F_axial_track = False
+
     def set_tau(self, tau):
         self.force.tau = tau
 
@@ -60,10 +65,6 @@ class SOABody:
         })
 
     def get_node_position(self, node):
-        """
-        Position vector from body reference/inboard node to selected node.
-        Assumes straight beam discretized uniformly along body.joint.klOO.
-        """
         n_nd = self.flex.n_nd
 
         if node < 0:
@@ -150,8 +151,6 @@ class SOABody:
 
             # Translational deformation for node j
             # (Translations are stored at indices j*6+3 to j*6+6 in the PI matrix)
-            s = eta
-            l = PI[j*6+3: j*6+6, :]
             u_j = PI[j*6+3: j*6+6, :] @ eta
 
             # Global position of node j
@@ -172,15 +171,61 @@ class SOABody:
     
     def end_z_spring(self, pos, pos_dot, R_i):
         # Parameters
-        a = 2e3
-        b = 2e3
+        a = 2e4
+        b = 1e4
 
         F_z = - a * pos[-1][2, 0] - b * pos_dot[-1][2, 0]
         
         R6 = sb.get_R6(R_i)
-        F_end = R6 @ np.array([0, 0, 0, 0, 0, F_z]).reshape(6, 1)
+        F_end = R6.T @ np.array([0, 0, 0, 0, 0, F_z]).reshape(6, 1)
 
         return F_end
+    
+    def set_z_spring(self, k_z, c_z, node):
+        self.force.z_springs.append({
+            "node": int(node),
+            "k": float(k_z),
+            "c": float(c_z)
+        })
+
+    def set_global_axial_force(self, F_axial):
+        self.force.F_axial_global = np.array([0, 0, 0, F_axial, 0, 0]).reshape(6, 1)
+        self.force.F_axial_track = True
+
+    def get_global_forces_term(self, pos, pos_dot, R_i):
+        """Calculates and projects all custom global forces (springs & axial) into the local frame."""
+        n_md = self.flex.n_md
+        F_term = np.zeros((n_md + 6, 1))
+        
+        R6 = sb.get_R6(R_i)
+        PI = self.flex.PI
+
+        for spring in self.force.z_springs:
+            idx = spring["node"]
+            
+            if idx < 0:
+                idx = self.flex.n_nd + idx
+
+            k = spring["k"]
+            c = spring["c"]
+
+            F_z = - k * pos[idx][2, 0] - c * pos_dot[idx][2, 0]
+            F_glob = np.array([0, 0, 0, 0, 0, F_z]).reshape(6, 1)
+
+            F_loc = R6.T @ F_glob
+            PI_j = PI[6*idx : 6*idx + 6, :]
+            r_j = self.get_node_position(idx)
+            
+            F_term += np.vstack([PI_j.T @ F_loc, sb.phi(r_j) @ F_loc])
+
+        if self.force.F_axial_track:
+            F_loc = R6.T @ self.force.F_axial_global
+            PI_end = PI[-6:, :]
+            klOO = self.joint.klOO.reshape(3, 1)
+            
+            F_term += np.vstack([PI_end.T @ F_loc, sb.phi(klOO) @ F_loc])
+
+        return F_term
 
     # ----- Coriolis acceleration and gyroscopic force -----
     # Rigid SOA:

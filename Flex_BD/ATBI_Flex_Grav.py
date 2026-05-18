@@ -12,9 +12,6 @@ class ATBI_Flex:
         self.bodies = bodies
         self.n = len(bodies)
 
-        # Spatial gravity
-        self.g = np.array([0, 0, 0, 0, 0, 9.81]).reshape(6, 1)
-
         # Operators
         self.A_fl = [None] * self.n
 
@@ -38,7 +35,7 @@ class ATBI_Flex:
         b_fl = [None] * n
         A_fl = self.A_fl
 
-        for k in reversed(range(n)):
+        for k in range(n - 1, -1, -1):
             # Parameters of the body
             body = self.bodies[k]
             joint = body.joint

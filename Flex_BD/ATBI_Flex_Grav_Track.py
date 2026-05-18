@@ -11,9 +11,6 @@ class ATBI_Flex:
         self.bodies = bodies
         self.n = len(bodies)
 
-        # Spatial gravity
-        self.g = np.array([0, 0, 0, 0, 0, 9.81]).reshape(6, 1)
-
         # Operators
         self.A_fl = [None] * self.n
 
@@ -43,7 +40,7 @@ class ATBI_Flex:
         R_i = [None] * (n+1)
         R_i[n] = np.eye(3)
 
-        for k in reversed(range(n)):
+        for k in range(n - 1, -1, -1):
             # Parameters of the body
             body = self.bodies[k]
             joint = body.joint
@@ -83,7 +80,7 @@ class ATBI_Flex:
                 a_fl[k] = body.coriolis_BD(
                     V_r[k], V_r[k+1], beta, H, R3.T @ X[k+1][4:7], R3)
 
-                # Last node position and velocityof last body
+                # Last node position and velocity of last body
                 last_end = pos[k+1][-1]
                 last_end_dot = pos_dot[k+1][-1]
 
@@ -139,18 +136,10 @@ class ATBI_Flex:
             F_ext_term = body.get_F_ext_term(state, t)
             tau_TS_term = body.get_TS_term(theta, beta)
 
-            if k == 0:
-                # Track: Get the spring force
-                F_end = body.end_z_spring(pos[k], pos_dot[k], R_i[k])
-                
-                # Project the spatial force to the modal and rigid coordinates
-                PI_j = body.flex.PI[-6:, :]
-                
-                klOO = X[k][4:7]
+            # Track
+            F_ext_term += body.get_global_forces_term(pos[k], pos_dot[k], R_i[k])
 
-                # Add the spring force directly to F_ext_term
-                F_ext_term += np.vstack([PI_j.T @ F_end, sb.phi(klOO) @ F_end])
-                
+            if k == 0:
                 # Gather loop for k = 0 (Tip)
                 Gamma_fl = np.zeros((0, 6))
                 P_fl = M_fl
