@@ -73,7 +73,7 @@ sim.animate_nodes()
 # Fetch integrated data
 states = sim.get_state()
 V_list = sim.get_V_fl()
-nodal_pos = sim.nNodalPos()
+nodal_pos = sim.get_pos
 t_vector = sim.data.time
 
 nt = len(t_vector)
