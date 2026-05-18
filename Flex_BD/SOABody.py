@@ -21,9 +21,13 @@ class SOABody:
             self.theta0_TS = 0
 
             # Track
-            self.z_springs = []  # Can hold multiple springs on different nodes
+            self.z_springs = []
+            self.track_tensioners = []
             self.F_axial_global = np.zeros((6, 1))
             self.F_axial_track = False
+
+            # Earth Model
+            self.earth_model = None
 
     def set_tau(self, tau):
         self.force.tau = tau
@@ -133,10 +137,9 @@ class SOABody:
         self.set_F_ext(node=node, F_fun=impulse_fun)
     
     # ----- Track -----
-    def get_track_kin(self, last_end, last_end_dot, X, R_i, V, eta, eta_dot):
+    def get_track_kin(self, last_end, last_end_dot, R_i, R3, V, eta, eta_dot):
         # Parameters
         PI = self.flex.PI
-        R3 = sb.q2R(X[0:4].flatten(), 3)
         n_nd = self.flex.n_nd
         klOO_nd = self.flex.klOO_nd
 
@@ -191,15 +194,68 @@ class SOABody:
     def set_global_axial_force(self, F_axial):
         self.force.F_axial_global = np.array([0, 0, 0, F_axial, 0, 0]).reshape(6, 1)
         self.force.F_axial_track = True
+    
+    def set_track_tensioner(self, F_TT_z0, c_TT, z_0, node):
+        """
+        Adds a track tensioner at a specified node.
+        The force is applied along the global z-axis based on the formula:
+        F_TT = F_TT_0 - k_TT * z, where k_TT = F_TT_0 / z_0.
+        """
+        # Calculate stiffness so that z * k_TT = F_TT_0 at distance z_0
+        k_TT = F_TT_z0 / z_0
+        
+        self.force.track_tensioners.append({
+            "node": int(node),
+            "F_TT_z0": float(F_TT_z0),
+            "k_TT": float(k_TT),
+            "c_TT": float(c_TT)
+        })
+    
+    def set_earth_model(self, c, soil_type=None, k_c=None, k_phi=None, n=None):
+        """
+        Applies a Bekker earth model with damping to the body nodes.
+        
+        Usage Option 1 (Presets): 
+            Provide `c` and `soil_type` ("Hard dirt", "Soft soil", "Sand", or "Mud").
+        Usage Option 2 (Manual): 
+            Provide `c`, `k_c`, `k_phi`, and `n`.
+        """
+        
+        if soil_type is not None:
+            # Predefined typical values: (k_c, k_phi, n)
+            soil_presets = {
+                "Hard dirt": (2.0e4, 6.0e5, 0.7),
+                "Soft soil": (1.2e4, 3.5e5, 1.2),
+                "Sand":      (0.8e4, 2.0e5, 1.6),
+                "Mud":       (0.4e4, 0.8e5, 2.0)
+            }
+            
+            if soil_type in soil_presets:
+                k_c, k_phi, n = soil_presets[soil_type]
+            else:
+                print(f"Warning: Soil type '{soil_type}' not recognized. Defaulting to 'Soft soil'.")
+                k_c, k_phi, n = soil_presets["Soft soil"]
+                
+        elif None in (k_c, k_phi, n):
+            raise ValueError("You must provide either a 'soil_type' OR all manual parameters ('k_c', 'k_phi', 'n').")
+
+        self.force.earth_model = {
+            "k_c": float(k_c),
+            "k_phi": float(k_phi),
+            "n": float(n),
+            "c": float(c),
+            "b": float(self.rigid.w)  # Automatically uses body width
+        }
 
     def get_global_forces_term(self, pos, pos_dot, R_i):
-        """Calculates and projects all custom global forces (springs & axial) into the local frame."""
+        """Calculates and projects all custom global forces (springs & axial & earth) into the local frame."""
         n_md = self.flex.n_md
         F_term = np.zeros((n_md + 6, 1))
         
         R6 = sb.get_R6(R_i)
         PI = self.flex.PI
 
+        # z-springs
         for spring in self.force.z_springs:
             idx = spring["node"]
             
@@ -217,7 +273,71 @@ class SOABody:
             r_j = self.get_node_position(idx)
             
             F_term += np.vstack([PI_j.T @ F_loc, sb.phi(r_j) @ F_loc])
+        
+        # Track tensioners
+        for tt in self.force.track_tensioners:
+            idx = tt["node"]
+            
+            if idx < 0:
+                idx = self.flex.n_nd + idx
 
+            # Extract global z position and velocity for this node
+            z = pos[idx][2, 0]
+            z = pos[idx][2, 0]
+            z_dot = pos_dot[idx][2, 0]
+
+            # Calculate force magnitude
+            F_TT_mag = tt["F_TT_z0"] - tt["k_TT"] * z - tt["c_TT"] * z_dot
+
+            # Formulate the global force vector (purely in global z)
+            F_glob = np.array([0, 0, 0, 0, 0, -F_TT_mag]).reshape(6, 1)
+
+            # Transform to the local frame and project onto modes
+            F_loc = R6.T @ F_glob
+            PI_j = PI[6*idx : 6*idx + 6, :]
+            r_j = self.get_node_position(idx)
+            
+            F_term += np.vstack([PI_j.T @ F_loc, sb.phi(r_j) @ F_loc])
+
+        # Bekker earth model
+        if self.force.earth_model is not None:
+            em = self.force.earth_model
+            w = self.rigid.w
+            L_elem = self.flex.L_elem
+            n_nd = self.flex.n_nd
+            
+            for idx in range(n_nd):
+                z = pos[idx][2, 0]
+                z_dot = pos_dot[idx][2, 0]
+                
+                # Apply only for negative z values
+                if z < 0:
+                    # Penetration depth (p) and velocity (p_dot) are positive when going into the ground
+                    p = -z 
+                    p_dot = -z_dot
+                    
+                    # Area calculation: first and last node get half the area
+                    if idx == 0 or idx == n_nd - 1:
+                        A = (w * L_elem) / 2.0
+                    else:
+                        A = w * L_elem
+                        
+                    # Bekker formula: F_n = A * (k_c/b + k_phi) * z^n + c * z_dot
+                    F_mag = A * (em["k_c"] / em["b"] + em["k_phi"]) * (p ** em["n"]) + em["c"] * p_dot
+                    
+                    # Ground can only push up (repulsive contact force)
+                    F_mag = max(0.0, F_mag)
+                    
+                    if F_mag > 0:
+                        F_glob = np.array([0, 0, 0, 0, 0, F_mag]).reshape(6, 1)
+                        F_loc = R6.T @ F_glob
+                        
+                        PI_j = PI[6*idx : 6*idx + 6, :]
+                        r_j = self.get_node_position(idx)
+                        
+                        F_term += np.vstack([PI_j.T @ F_loc, sb.phi(r_j) @ F_loc])
+
+        # 3. Existing Global Axial Force
         if self.force.F_axial_track:
             F_loc = R6.T @ self.force.F_axial_global
             PI_end = PI[-6:, :]
@@ -226,7 +346,6 @@ class SOABody:
             F_term += np.vstack([PI_end.T @ F_loc, sb.phi(klOO) @ F_loc])
 
         return F_term
-
     # ----- Coriolis acceleration and gyroscopic force -----
     # Rigid SOA:
     def coriolis(self, V, beta, H, n_md):

@@ -14,7 +14,7 @@ H_type1 = "spherical"
 H_type2 = "spherical"
 
 # Flexible Parameters
-E, G = 230e9, 80e9
+E, G = 230e7, 80e7
 c = 0.0
 rho = 7850
 n_nd, n_md = 10, 0
@@ -63,7 +63,7 @@ dt = 0.01
 # Simulate
 sim = Simulation(system, tf, dt)
 sim.set_camera_speed(0)
-sim.set_tol(1e-8, 1e-10)
+sim.set_tol(1e-3, 1e-6)
 sim.set_max_step(dt)
 sim.IntegrateSystem("Radau")
 
@@ -73,7 +73,7 @@ sim.animate_nodes()
 # Fetch integrated data
 states = sim.get_state()
 V_list = sim.get_V_fl()
-nodal_pos = sim.get_pos
+nodal_pos = sim.get_pos()
 t_vector = sim.data.time
 
 nt = len(t_vector)

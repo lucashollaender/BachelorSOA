@@ -15,11 +15,12 @@ from matplotlib.lines import Line2D
 # Increase limit to 100 MB (default is 20)
 plt.rcParams['animation.embed_limit'] = 1000
 
+
 class Simulation:
     class Data:
         def __init__(self):
-            self.time, self.state, self.X_list, self.V_fl_list, self.a_fl_list, self.b_fl_list, self.alpha_fl_list, self.pos, self.R_i_list = [
-            ], [], [], [], [], [], [], [], []
+            self.time, self.state, self.X_list, self.V_fl_list, self.a_fl_list, self.b_fl_list, self.alpha_fl_list, self.pos = [
+            ], [], [], [], [], [], [], []
 
     class Setting:
         def __init__(self):
@@ -146,8 +147,6 @@ class Simulation:
             self.data.a_fl_list.append(a_fl)
             self.data.b_fl_list.append(b_fl)
             self.data.alpha_fl_list.append(alpha_fl)
-            self.data.pos.append(pos)
-            self.data.R_i_list.append(R_i)
 
     # Call functions for data
     def get_state(self):
@@ -167,9 +166,6 @@ class Simulation:
 
     def get_alpha_fl(self):
         return self.data.alpha_fl_list
-    
-    def get_pos(self):
-        return self.data.pos
 
     # Settings
     def set_xlim(self, xmin, xmax):
@@ -207,41 +203,130 @@ class Simulation:
 
     def get_com_frame_data(self, frame_idx, auto_scale=None):
         state = self.data.state[frame_idx]
-        R_i_list = self.data.R_i_list[frame_idx]
-        pos_list = self.data.pos[frame_idx]     
+        X = self.data.X_list[frame_idx]
         n = len(self.system.bodies)
 
         lines_data = []
 
+        # Determine scaling for X, Y, and Z
         if self.setting.frame_scale == "auto" and auto_scale is not None:
             scale_x, scale_y, scale_z = auto_scale
         else:
+            # Fallback if a manual scale (like 0.5) was provided
             scale_x = scale_y = scale_z = self.setting.frame_scale
 
-        scale_mat = np.diag([scale_x, scale_y, scale_z])
+        R_i = np.eye(3)
+        last_end = np.zeros((3, 1))
 
+        # Loop backwards like in nNodalPos
         for k in range(n - 1, -1, -1):
             body = self.system.bodies[k]
             eta = state.Eta[k]
             n_nd = body.flex.n_nd
             PI = body.flex.PI
-            
+            klOO_nd = body.flex.klOO_nd
+
+            # Base rotation of the body
+            q = X[k][0:4]
+            R3 = sb.q2R(q.flatten(), 3)
+            R_i = R_i @ R3
+
+            # Center of mass is represented by the middle node
             mid_idx = n_nd // 2
 
-            p_glob = pos_list[k][mid_idx]
+            # 1. Global Position of the CoM node
+            pos_und = klOO_nd[mid_idx]
+            u_mid = PI[mid_idx*6+3: mid_idx*6+6, :] @ eta
+            p_glob = last_end + R_i @ (pos_und + u_mid)
 
+            # 2. Global Rotation of the CoM node
             R_mid_vec = PI[mid_idx*6: mid_idx*6+3, :] @ eta
             R_mid = Rotation.from_rotvec(R_mid_vec.flatten()).as_matrix()
-            
-            R_glob = R_i_list[k] @ R_mid
+            R_glob = R_i @ R_mid
 
+            # Create scaling matrix for global projection
+            scale_mat = np.diag([scale_x, scale_y, scale_z])
+
+            # 3. Calculate Endpoints for X (Red), Y (Green), Z (Blue)
+            # We take a unit vector, rotate it, and THEN scale it by the axis limits
             x_end = p_glob + scale_mat @ R_glob @ np.array([[1.0], [0.0], [0.0]])
             y_end = p_glob + scale_mat @ R_glob @ np.array([[0.0], [1.0], [0.0]])
             z_end = p_glob + scale_mat @ R_glob @ np.array([[0.0], [0.0], [1.0]])
 
             lines_data.append((p_glob, x_end, y_end, z_end))
 
+            # Advance to the tip of this body to set up the next body's base
+            u_last = PI[(n_nd-1)*6+3: (n_nd-1)*6+6, :] @ eta
+            last_end = last_end + R_i @ (klOO_nd[-1] + u_last)
+
+            R_n_vec = PI[-6:-3, :] @ eta
+            R_n = Rotation.from_rotvec(R_n_vec.flatten()).as_matrix()
+            R_i = R_i @ R_n
+
         return lines_data
+
+    def nNodalPos(self):
+        t = self.data.time
+        X = self.data.X_list
+        n = len(self.system.bodies)
+
+        nt = len(t)
+        nodal_pos = []
+
+        for i in range(nt):
+            # Current state
+            state = self.data.state[i]
+
+            # End node (O_-1+)
+            last_end = np.zeros((3, 1))
+
+            R_i = np.eye(3)
+            R_n = np.eye(3)
+
+            nodes_i = []
+
+            for k in range(n - 1, -1, -1):
+                # Current body parameters
+                eta = state.Eta[k]
+                body = self.system.bodies[k]
+                n_nd = body.flex.n_nd
+                PI = body.flex.PI
+                L_elem = body.flex.L_elem
+                klOO_nd = body.flex.klOO_nd
+
+                nodes_k = []
+
+                # Unpancking X-vector
+                q = X[i][k][0:4]    # Quaternion: k to k+1
+                R3 = sb.q2R(q.flatten(), 3)
+
+                # Rotation
+                R_i = R_i @ R3
+
+                for j in range(n_nd):
+                    # Undeformed position in local frame
+                    pos_und = klOO_nd[j]
+
+                    # Translational deformation for node j
+                    # (Translations are stored at indices j*6+3 to j*6+6 in the PI matrix)
+                    u_j = PI[j*6+3: j*6+6, :] @ eta
+
+                    # Global position of node j (of body k)
+                    p_glob = last_end + R_i @ (pos_und + u_j)
+                    nodes_k.append(p_glob)
+
+                # Rotation of last node
+                R_n_vec = PI[-6:-3, :] @ eta
+                R_n = Rotation.from_rotvec(R_n_vec.flatten()).as_matrix() # np.eye(3)
+
+                R_i = R_i @ R_n
+
+                last_end = nodes_k[-1]
+                nodes_i.append(nodes_k)
+
+            nodal_pos.append(nodes_i)
+
+        return nodal_pos
 
     def animate_nodes(self, filename="", save_dir=""):
         # Takes nodal position list and returns 3D simulation of the flexible beam
@@ -250,7 +335,7 @@ class Simulation:
         dt = t[1] - t[0]
 
         # Get nodal positions for the flexible beam
-        nodal_pos = self.data.pos
+        nodal_pos = self.nNodalPos()
 
         if not nodal_pos:
             print("Error: No nodal position data found. Did you run the integration?")
@@ -432,3 +517,7 @@ class Simulation:
 
         else:
             plt.show()
+
+    def get_pos(self):
+        self.data.pos = self.nBodyPos()
+        return self.data.pos
