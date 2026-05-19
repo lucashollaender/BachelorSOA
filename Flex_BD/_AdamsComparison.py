@@ -8,8 +8,8 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import os
 
-ADAMS_HINGE1_FILE = "_Hinge1_ang_acc_alu.tab"
-ADAMS_HINGE2_FILE = "_Hinge2_ang_acc_alu.tab"
+ADAMS_HINGE1_FILE = "_Hinge1_ang_acc_alu_30.tab"
+ADAMS_HINGE2_FILE = "_Hinge2_ang_acc_alu_30.tab"
 
 
 def read_adams_tab(filename):
@@ -52,12 +52,12 @@ H_type2 = "revy"
 
 # n_md_max = (n_nd - 1) * 3
 # steel
-# E, G, c, rho, n_nd, n_md = 230e9, 80e9, 0.02, 7801, 10, 10
+# E, G, c, rho, n_nd, n_md = 207e9, 80e9, 0.02, 7801, 10, 20
 
 # Alu
-E, G, c, rho, n_nd, n_md = 7.17e10, 2.7e10, 0.02, 2740, 10, 10
+E, G, c, rho, n_nd, n_md = 7.17e10, 2.7e10, 0.02, 2740, 10, 5
 
-w, h = 0.04, 0.04
+w, h = 0.06, 0.04
 
 j1 = Joint(klOO1, H_type1)
 r1 = Rigid_Properties(rho, w, h)
@@ -70,6 +70,8 @@ f2 = Flex_Properties(E, G, c, n_nd, n_md)
 b1 = SOABody(j1, r1, f1)
 b2 = SOABody(j2, r2, f2)
 
+b2.set_initial_theta0(np.deg2rad(60))
+
 bodies = [b1, b2]
 
 system = MultibodySystem(bodies)
@@ -79,8 +81,12 @@ dt = 0.01
 
 sim = Simulation(system, tf, dt)
 sim.set_max_step(dt)
-sim.set_tol(1e-6, 1e-8)
+sim.set_tol(1e-4, 1e-6)
 sim.IntegrateSystem("Radau")
+
+# sim.set_camera_hor(90)
+# sim.set_camera_ver(0)
+# sim.animate_nodes()
 
 
 # =================================================
@@ -104,14 +110,15 @@ theta_ddot_body2 = []
 for i, state in enumerate(states):
     t_i = t_flex[i]
 
-    X, V, a_fl, b_fl = system.ATBI.scatter_kinematics(state)
+    X, R3_list, V, a_fl, b_fl, pos, pos_dot, R_i = system.ATBI.scatter_kinematics(
+        state)
 
     G_pr, nu_pr, nu_m, g_fl = system.ATBI.gather_ATBI(
-        state, a_fl, b_fl, X, t_i
+        state, a_fl, b_fl, X, R3_list, pos, pos_dot, R_i, t_i
     )
 
     theta_ddot, eta_ddot, alpha_fl = system.ATBI.scatter_ATBI(
-        a_fl, X, G_pr, nu_pr, nu_m, g_fl
+        a_fl, X, R3_list, G_pr, nu_pr, nu_m, g_fl
     )
 
     theta_ddot_body1.append(float(theta_ddot[0].flatten()[0]))
