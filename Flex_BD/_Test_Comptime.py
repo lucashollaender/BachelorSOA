@@ -28,7 +28,7 @@ def build_flexible_soa_model(n_bodies=2):
 
     # Flexible discretization
     n_nd = 11
-    n_md = 11
+    n_md = 20
 
     # Simulation settings
     tf = 5
@@ -128,10 +128,10 @@ if __name__ == "__main__":
     # Choose:
     # "timing"     -> run computation-time benchmark and compare with Adams
     # "simulation" -> run and animate one corresponding simulation
-    run_mode = "timing"
+    run_mode = "simulation"
 
     # Used only when run_mode == "simulation"
-    n_bodies = 10
+    n_bodies = 3
 
     # Used only when run_mode == "timing"
     n_body_values = np.arange(1, 11)
