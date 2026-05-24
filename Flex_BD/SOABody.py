@@ -213,38 +213,33 @@ class SOABody:
     
     def set_earth_model(self, c, soil_type=None, k_c=None, k_phi=None, n=None):
         """
-        Applies a Bekker earth model with damping to the body nodes.
-        
-        Usage Option 1 (Presets): 
-            Provide `c` and `soil_type` ("Hard dirt", "Soft soil", "Sand", or "Mud").
-        Usage Option 2 (Manual): 
-            Provide `c`, `k_c`, `k_phi`, and `n`.
+        Applies a Bekker earth model with purely z-dependent Mohr-Coulomb traction.
         """
-        
         if soil_type is not None:
-            # Predefined typical values: (k_c, k_phi, n)
+            # Presets: (k_c, k_phi, n, c_soil, mu_soil)
             soil_presets = {
-                "Hard dirt": (2.0e4, 6.0e5, 0.7),
-                "Soft soil": (1.2e4, 3.5e5, 1.2),
-                "Sand":      (0.8e4, 2.0e5, 1.6),
-                "Mud":       (0.4e4, 0.8e5, 2.0)
+                "Hard dirt": (2.0e4, 6.0e5, 0.7, 5.0e2, 0.058), # mu roughly tan(30 deg)
+                "Soft soil": (1.2e4, 3.5e5, 1.2, 1.0e2, 0.036), # mu roughly tan(20 deg)
+                "Sand":      (0.8e4, 2.0e5, 1.6, 0.0,   0.070), # mu roughly tan(35 deg)
+                "Mud":       (0.4e4, 0.8e5, 2.0, 0.5e2, 0.018)  # mu roughly tan(10 deg)
             }
             
             if soil_type in soil_presets:
-                k_c, k_phi, n = soil_presets[soil_type]
+                k_c, k_phi, n, c_soil, mu_soil = soil_presets[soil_type]
             else:
-                print(f"Warning: Soil type '{soil_type}' not recognized. Defaulting to 'Soft soil'.")
-                k_c, k_phi, n = soil_presets["Soft soil"]
+                k_c, k_phi, n, c_soil, mu_soil = soil_presets["Soft soil"]
                 
         elif None in (k_c, k_phi, n):
-            raise ValueError("You must provide either a 'soil_type' OR all manual parameters ('k_c', 'k_phi', 'n').")
+            raise ValueError("You must provide either a 'soil_type' OR all manual parameters.")
 
         self.force.earth_model = {
             "k_c": float(k_c),
             "k_phi": float(k_phi),
             "n": float(n),
-            "c": float(c),
-            "b": float(self.rigid.w)  # Automatically uses body width
+            "c": float(c),               # Normal damping
+            "c_soil": float(c_soil),     # Soil cohesion
+            "mu_soil": float(mu_soil),   # Soil friction coefficient
+            "b": float(self.rigid.w) 
         }
 
     def get_global_forces_term(self, pos, pos_dot, R_i):
@@ -299,7 +294,7 @@ class SOABody:
             
             F_term += np.vstack([PI_j.T @ F_loc, sb.phi(r_j) @ F_loc])
 
-        # Bekker earth model
+        # Bekker earth model & z-dependent Traction
         if self.force.earth_model is not None:
             em = self.force.earth_model
             w = self.rigid.w
@@ -310,33 +305,40 @@ class SOABody:
                 z = pos[idx][2, 0]
                 z_dot = pos_dot[idx][2, 0]
                 
-                # Apply only for negative z values
+                # Apply only for negative z values (node is touching ground)
                 if z < 0:
-                    # Penetration depth (p) and velocity (p_dot) are positive when going into the ground
                     p = -z 
                     p_dot = -z_dot
                     
-                    # Area calculation: first and last node get half the area
                     if idx == 0 or idx == n_nd - 1:
                         A = (w * L_elem) / 2.0
+                        A_x = 0.5
                     else:
                         A = w * L_elem
+                        A_x = 1
                         
-                    # Bekker formula: F_n = A * (k_c/b + k_phi) * z^n + c * z_dot
-                    F_mag = A * (em["k_c"] / em["b"] + em["k_phi"]) * (p ** em["n"]) + em["c"] * p_dot
+                    # 1. Normal Force (Bekker)
+                    F_z_mag = A * (em["k_c"] / em["b"] + em["k_phi"]) * (p ** em["n"]) + em["c"] * p_dot
+                    F_z_mag = max(0.0, F_z_mag) # Ground only pushes up
                     
-                    # Ground can only push up (repulsive contact force)
-                    F_mag = max(0.0, F_mag)
-                    
-                    if F_mag > 0:
-                        F_glob = np.array([0, 0, 0, 0, 0, F_mag]).reshape(6, 1)
+                    F_x = - A_x * (1e5 / 2) / 30
+
+                    if F_z_mag > 0:
+                        # 2. Purely z-dependent Traction (Mohr-Coulomb)
+                        #F_x_mag = A * em["c_soil"] + F_z_mag * em["mu_soil"]
+                        
+                        # Apply force opposite to the direction of your axial pull (hardcoded left)
+                        #F_x = #-F_x_mag
+                        
+                        # Formulate the global force vector [Mx, My, Mz, Fx, Fy, Fz]
+                        F_glob = np.array([0, 0, 0, F_x, 0, F_z_mag]).reshape(6, 1)
                         F_loc = R6.T @ F_glob
                         
                         PI_j = PI[6*idx : 6*idx + 6, :]
                         r_j = self.get_node_position(idx)
                         
                         F_term += np.vstack([PI_j.T @ F_loc, sb.phi(r_j) @ F_loc])
-
+        
         # 3. Existing Global Axial Force
         if self.force.F_axial_track:
             F_loc = R6.T @ self.force.F_axial_global
@@ -346,6 +348,7 @@ class SOABody:
             F_term += np.vstack([PI_end.T @ F_loc, sb.phi(klOO) @ F_loc])
 
         return F_term
+
     # ----- Coriolis acceleration and gyroscopic force -----
     # Rigid SOA:
     def coriolis(self, V, beta, H, n_md):

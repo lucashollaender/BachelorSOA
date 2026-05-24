@@ -134,10 +134,10 @@ class Simulation:
             # Kinematic scatter loop to find X
             X, R3_list, V_fl, a_fl, b_fl, pos, pos_dot, R_i = self.system.ATBI.scatter_kinematics(
                 current_state)
-            G_pr, nu_pr, nu_m, g_fl = self.system.ATBI.gather_ATBI(
+            G_pr, nu_pr, nu_m, g_fl, P_pr_plus, z_pr_plus = self.system.ATBI.gather_ATBI(
                 current_state, a_fl, b_fl, X, R3_list, pos, pos_dot, R_i, self.data.time[i])
-            _, _, alpha_fl = self.system.ATBI.scatter_ATBI(
-                a_fl, X, R3_list, G_pr, nu_pr, nu_m, g_fl)
+            _, _, alpha_fl, F_int = self.system.ATBI.scatter_ATBI(
+                a_fl, X, R3_list, G_pr, nu_pr, nu_m, g_fl, P_pr_plus, z_pr_plus)
 
             # Add to list
             self.data.state.append(current_state)

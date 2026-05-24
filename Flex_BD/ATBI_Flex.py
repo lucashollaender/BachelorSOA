@@ -108,7 +108,7 @@ class ATBI_Flex:
             # Last end rotation
             R3_n_vec = PI[0:3, :] @ eta 
             R3_n = Rotation.from_rotvec(R3_n_vec.flatten()).as_matrix()
-        
+
         return X, R3_list, V, a_fl, b_fl, pos, pos_dot, R_i
 
     def gather_ATBI(self, state: SystemState, a_fl, b_fl, X, R3_list, pos, pos_dot, R_i, t):
@@ -144,21 +144,15 @@ class ATBI_Flex:
             C_fl = body.flex.C_fl
             PI = body.flex.PI_end
             n_md = body.flex.n_md
-            # H_M_fl = np.hstack([np.eye(n_md, n_md), np.zeros((n_md, 6))])
 
             # Applied loads and springs
             F_ext_term = body.get_F_ext_term(state, t)
             tau_TS_term = body.get_TS_term(theta, beta)
 
-            # Track
-            F_ext_term += body.get_global_forces_term(pos[k], pos_dot[k], R_i[k])
-
             if k == 0:
                 # Gather loop for k = 0 (Tip)
                 Gamma_fl = np.zeros((0, 6))
                 P_fl = M_fl
-                # D_m[k] = H_M_fl @ P_fl @ H_M_fl.T
-                # mu_fl = P_fl[-6:, :] @ H_M_fl.T
                 D_m[k] = P_fl[:n_md, :n_md]
                 mu_fl = P_fl[-6:, :n_md]
                 D_m_inv = body.get_D_m_inv(Gamma_fl, "tip")
@@ -186,11 +180,8 @@ class ATBI_Flex:
                 # Gather loop for k > 0 (Not tip)
                 Gamma_fl = R6 @ P_pr_plus[k-1] @ R6.T
                 P_fl = A_fl[k] @ Gamma_fl @ A_fl[k].T + M_fl
-                # D_m[k] = H_M_fl @ P_fl @ H_M_fl.T
-                # mu_fl = P_fl[-6:, :] @ H_M_fl.T
                 D_m[k] = P_fl[:n_md, :n_md]
                 mu_fl = P_fl[-6:, :n_md]
-                # D_m_inv = la.solve(D_m[k], np.eye(n_md), assume_a="sym")
                 D_m_inv = body.get_D_m_inv(Gamma_fl, "not_tip")
                 g_fl[k] = mu_fl @ D_m_inv
                 P_pr[k] = P_fl[-6:, -6:] - g_fl[k] @ mu_fl.T
@@ -209,9 +200,9 @@ class ATBI_Flex:
                 nu_pr[k] = la.solve(D_pr[k], eps_pr)
                 z_pr_plus[k] = z_pr + G_pr[k] @ eps_pr
 
-        return G_pr, nu_pr, nu_m, g_fl
+        return G_pr, nu_pr, nu_m, g_fl, P_pr_plus, z_pr_plus
 
-    def scatter_ATBI(self, a_fl, X, R3_list, G_pr, nu_pr, nu_m, g_fl):
+    def scatter_ATBI(self, a_fl, X, R3_list, G_pr, nu_pr, nu_m, g_fl, P_pr_plus, z_pr_plus):
         # Step 3 of ATBI (second scatter sweep): Takes found parameters in gather sweep and returns generalized acceleration and eta_ddot
 
         # Number of bodies
@@ -221,6 +212,7 @@ class ATBI_Flex:
         alpha_fl = [None] * n
         theta_ddot = [None] * n
         eta_ddot = [None] * n
+        F_int = [None] * n
         A_fl = self.A_fl
 
         # Loop backwards from n-1 down to 0
@@ -231,6 +223,7 @@ class ATBI_Flex:
             R6 = sb.get_R6(R3_list[k])
 
             if k == n - 1:
+                alpha_pr_plus = np.zeros((6, 1))
                 alpha_base = R6.T @ self.g
                 theta_ddot[k] = nu_pr[k] - G_pr[k].T @ alpha_base
                 alpha_pr = alpha_base + H_B.T @ theta_ddot[k] + a_fl[k][-6:]
@@ -244,5 +237,10 @@ class ATBI_Flex:
                 alpha_pr = alpha_pr_plus + H_B.T @ theta_ddot[k] + a_fl[k][-6:]
                 eta_ddot[k] = nu_m[k] - g_fl[k].T @ alpha_pr
                 alpha_fl[k] = np.vstack([eta_ddot[k], alpha_pr])
+            
+            # Inter-link-forces
+            F_int[k] = P_pr_plus[k] @ alpha_pr_plus + z_pr_plus[k]
+            #print(k)
+            #print(F_int[k][3, 0])
 
-        return theta_ddot, eta_ddot, alpha_fl
+        return theta_ddot, eta_ddot, alpha_fl, F_int
