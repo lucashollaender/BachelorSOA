@@ -11,9 +11,9 @@ import matplotlib.pyplot as plt
 # ---------------------------------------------------------------------
 # Model setup
 # ---------------------------------------------------------------------
-def build_flexible_soa_model(n_bodies=2):
+def build_flexible_soa_model(n_bodies=2, mode_selection=None):
     """
-    Builds an n-body flexible SOA model.
+    Builds an n-body flexible SOA model with a specified mode selection.
     """
 
     # Material parameters (alu)
@@ -28,10 +28,12 @@ def build_flexible_soa_model(n_bodies=2):
 
     # Flexible discretization
     n_nd = 11
-    n_md = 11
+
+    # Total number of modes from selected mode groups
+    n_md = sum(mode_selection.values())
 
     # Simulation settings
-    tf = 5
+    tf = 1
     dt = 0.01
 
     def make_body():
@@ -39,17 +41,14 @@ def build_flexible_soa_model(n_bodies=2):
 
         joint = Joint(klOO, "revy")
         rigid = Rigid_Properties(rho, w, h)
+
         flex = Flex_Properties(
             E,
             G,
             c,
             n_nd,
             n_md,
-            mode_selection={
-                "bending_xy": 2,
-                "bending_xz": 2,
-                "axial_x": 1,
-            },
+            mode_selection=mode_selection,
         )
 
         return SOABody(joint, rigid, flex)
@@ -58,9 +57,9 @@ def build_flexible_soa_model(n_bodies=2):
     bodies = [make_body() for _ in range(n_bodies)]
 
     # Initial position
-    initial_revy_angle = np.deg2rad(85)
+    initial_revy_angle = np.deg2rad(0)
 
-    # Only rotate the base body, otherwise the chain bends
+    # Only rotate the base body, otherwise the chain bends initially
     bodies[-1].set_initial_theta0(np.array([[initial_revy_angle]]))
 
     system = MultibodySystem(bodies)
@@ -74,7 +73,7 @@ def build_flexible_soa_model(n_bodies=2):
 # ---------------------------------------------------------------------
 # Timing helper
 # ---------------------------------------------------------------------
-def time_soa_simulation(n_bodies, solver="Radau"):
+def time_soa_simulation(n_bodies, mode_selection, label, solver="Radau"):
     """
     Builds and integrates the SOA model.
     Reports elapsed wall time only.
@@ -84,7 +83,10 @@ def time_soa_simulation(n_bodies, solver="Radau"):
 
     # Model-build timing
     build_start = time.perf_counter()
-    sim = build_flexible_soa_model(n_bodies)
+    sim = build_flexible_soa_model(
+        n_bodies=n_bodies,
+        mode_selection=mode_selection,
+    )
     build_elapsed = time.perf_counter() - build_start
 
     # Integration timing
@@ -96,6 +98,8 @@ def time_soa_simulation(n_bodies, solver="Radau"):
 
     return {
         "n_bodies": n_bodies,
+        "mode_selection": mode_selection,
+        "label": label,
         "solver": solver,
         "build_elapsed": build_elapsed,
         "integration_elapsed": integration_elapsed,
@@ -106,6 +110,7 @@ def time_soa_simulation(n_bodies, solver="Radau"):
 def print_timing_report(results):
     print("\nFinished")
     print(f"Bodies = {results['n_bodies']}")
+    print(f"Modes  = {results['label']}")
     print(f"Solver = {results['solver']}")
 
     print("\nIntegration only:")
@@ -126,59 +131,102 @@ if __name__ == "__main__":
     solver = "Radau"
 
     # Choose:
-    # "timing"     -> run computation-time benchmark and compare with Adams
-    # "simulation" -> run and animate one corresponding simulation
+    # "timing"     -> run computation-time benchmark
+    # "simulation" -> run and animate one simulation
     run_mode = "timing"
 
     # Used only when run_mode == "simulation"
-    n_bodies = 10
+    n_bodies = 3
+
+    simulation_mode_selection = {
+        "bending_xy": 2,
+        "bending_xz": 2,
+        "axial_x": 1,
+    }
 
     # Used only when run_mode == "timing"
     n_body_values = np.arange(1, 11)
 
-    # Adams elapsed-time results
-    AdamsElapsed = [3.30, 3.36, 3.47, 3.59, 3.74, 3.78, 4.12, 4.14, 4.17, 4.35]
+    # Only two mode selections
+    mode_cases = [
+        {
+            "label": "2 bending + 1 axial",
+            "mode_selection": {
+                "bending_xy": 1,
+                "bending_xz": 1,
+                "axial_x": 1,
+            },
+        },
+        {
+            "label": "4 bending + 1 axial",
+            "mode_selection": {
+                "bending_xy": 2,
+                "bending_xz": 2,
+                "axial_x": 1,
+            },
+        },
+    ]
 
     if run_mode == "timing":
 
-        SOAElapsed = []
+        timing_results = {}
 
-        for n_bodies_i in n_body_values:
-            results = time_soa_simulation(
-                n_bodies=n_bodies_i,
-                solver=solver,
+        for case in mode_cases:
+
+            label = case["label"]
+            mode_selection = case["mode_selection"]
+
+            SOAElapsed = []
+
+            print("\n" + "=" * 60)
+            print(f"Running benchmark for: {label}")
+            print(f"Mode selection: {mode_selection}")
+            print("=" * 60)
+
+            for n_bodies_i in n_body_values:
+
+                results = time_soa_simulation(
+                    n_bodies=n_bodies_i,
+                    mode_selection=mode_selection,
+                    label=label,
+                    solver=solver,
+                )
+
+                print_timing_report(results)
+
+                # Use integration elapsed time only
+                SOAElapsed.append(results["integration_elapsed"])
+
+            timing_results[label] = SOAElapsed
+
+        # -------------------------------------------------------------
+        # Plot computation time vs number of bodies
+        # -------------------------------------------------------------
+        plt.figure()
+
+        for label, elapsed_values in timing_results.items():
+            plt.plot(
+                n_body_values,
+                elapsed_values,
+                "o-",
+                label=label,
             )
 
-            print_timing_report(results)
-
-            # Use total elapsed time: model build + integration
-            SOAElapsed.append(results["integration_elapsed"])
-
-        # Plot elapsed time comparison
-        plt.figure()
-        plt.plot(
-            n_body_values,
-            AdamsElapsed[:len(n_body_values)],
-            "o-",
-            label="Adams elapsed",
-        )
-        plt.plot(
-            n_body_values,
-            SOAElapsed,
-            "o-",
-            label="SOA elapsed",
-        )
-
         plt.xlabel("Number of bodies")
-        plt.ylabel("Elapsed time [s]")
-        plt.title(f"Elapsed time comparison, solver = {solver}")
+        plt.ylabel("Integration elapsed time [s]")
+        plt.title(
+            f"SOA computation time for selected modes, solver = {solver}")
         plt.grid(True)
-        plt.legend()
+        plt.legend(title="Mode selection")
+        plt.tight_layout()
         plt.show()
 
     elif run_mode == "simulation":
 
-        sim = build_flexible_soa_model(n_bodies=n_bodies)
+        sim = build_flexible_soa_model(
+            n_bodies=n_bodies,
+            mode_selection=simulation_mode_selection,
+        )
 
         sim.IntegrateSystem(solver)
 
