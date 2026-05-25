@@ -9,16 +9,17 @@ import pandas as pd
 L = 1
 klOO1 = np.array([L, 0, 0]).reshape(3, 1)
 
-E = 1.93e9
-G = 6.902e9
+E = 7.17e10
+G = 2.7e10
 c = 0.02
-rho = 1300
+rho = 2740
 
-n_nd = 10
-n_md = 10
+n_nd = 11
+n_md = 20
 
-w = 0.04
-h = 0.03   # non-square section helps separate bending pairs
+w = 0.06
+
+h = 0.04   # non-square section helps separate bending pairs
 
 
 # Properties
