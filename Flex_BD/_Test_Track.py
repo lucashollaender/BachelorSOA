@@ -17,7 +17,7 @@ H_type2 = "revy"
 H_type3 = "revy"
 
 # n_md_max = (n_nd - 1) * 3
-E, G, c, rho, n_nd, n_md = 1e9, 5e6, 0.49, 1.4e3, 11, 20
+E, G, c, rho, n_nd, n_md = 1e9, 5e6, 1, 1.4e3, 11, 20
 
 w, h = 0.3, 0.08
 
@@ -42,10 +42,10 @@ f3 = Flex_Properties(E, G, c, n_nd, n_md, mode_selection={
                      "bending_xz": 2,
                      "axial_x": 1})
 
-F_axial = 2e5
-f1.set_constant_axial_load(F_axial)
-f2.set_constant_axial_load(F_axial)
-f3.set_constant_axial_load(F_axial)
+F_axial = 1e5
+f1.set_constant_axial_load(F_axial - F_axial/6)
+f2.set_constant_axial_load(F_axial - F_axial/6*3)
+f3.set_constant_axial_load(F_axial - F_axial/6*5)
 
 b1 = SOABody(j1, r1, f1)
 b2 = SOABody(j2, r2, f2)
@@ -72,8 +72,8 @@ b3.set_TS(k_TS, c_TS, 0)
 # b1.set_earth_model(c=5e3, soil_type="Sand") "Hard dirt", "Soft soil", "Sand" or "Mud"
 # b1.set_earth_model(c=4.5e3, k_c=1.0e4, k_phi=1.3e6, n=1.2)
 
-c_earth = 1e5
-soil_type = "Soft soil"
+c_earth = 2e5
+soil_type = "Hard dirt"
 
 b1.set_earth_model(c=c_earth, soil_type=soil_type)
 b2.set_earth_model(c=c_earth, soil_type=soil_type)
@@ -88,7 +88,7 @@ c_z = 1e4
 b1.set_global_axial_force(F_axial)
 b1.set_z_spring(k_z, c_z, node=-1)
 
-F_TT_z0, c_TT, z_0 = 5e2, 1e4, 0.01
+F_TT_z0, c_TT, z_0 = 5e3, 1e5, 0.1
 
 b1.set_track_tensioner(F_TT_z0, c_TT, z_0, node=5)
 b2.set_track_tensioner(F_TT_z0, c_TT, z_0, node=5)
@@ -99,7 +99,7 @@ bodies = [b1, b2, b3]
 system = MultibodySystem(bodies)
 system.set_gravity(True)
 
-tf = 2
+tf = 4
 dt = 0.01
 
 sim = Simulation(system, tf, dt)
@@ -109,9 +109,9 @@ sim.set_camera_hor(-90)
 sim.set_camera_speed(0)
 sim.set_ani_dt(0.01)
 sim.show_COM_frames()
-sim.set_max_step(0.01)
+#sim.set_max_step(0.01)
 sim.set_xlim(-1, 7)
-sim.set_zlim(-0.1, 0.1)
+sim.set_zlim(-0.005, 0.005)
 
 sim.IntegrateSystem("Radau")
 

@@ -2,7 +2,7 @@ import numpy as np
 import pandas as pd
 from SOALIB import soalib as sb
 from SystemState import SystemState
-from ATBI_Flex_Grav_Track_Rot import ATBI_Flex
+from Flex_BD.ATBI_Flex_Track import ATBI_Flex
 
 class MultibodySystem:
     def __init__(self, bodies):
@@ -32,10 +32,10 @@ class MultibodySystem:
                 state.Theta[k][0:4] = q / np.linalg.norm(q)
             
         X, R3_list, V, a_fl, b_fl, pos, pos_dot, R_i = self.ATBI.scatter_kinematics(state)
-        G_pr, nu_pr, nu_m, g_fl = self.ATBI.gather_ATBI(
+        G_pr, nu_pr, nu_m, g_fl, P_pr_plus, z_pr_plus = self.ATBI.gather_ATBI(
             state, a_fl, b_fl, X, R3_list, pos, pos_dot, R_i, t)
-        theta_ddot, eta_ddot, alpha_fl = self.ATBI.scatter_ATBI(
-            a_fl, X, R3_list, G_pr, nu_pr, nu_m, g_fl)
+        theta_ddot, eta_ddot, alpha_fl, F_int = self.ATBI.scatter_ATBI(
+            a_fl, X, R3_list, G_pr, nu_pr, nu_m, g_fl, P_pr_plus, z_pr_plus)
 
         # S_dot setup 
         Theta_dot, Eta_dot_list = [], []
