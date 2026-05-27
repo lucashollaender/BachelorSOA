@@ -9,13 +9,14 @@ import matplotlib.pyplot as plt
 from markus.Cart_pend_functions import run_single_case, run_benchmark
 import pandas as pd
 
-N, solvetime =run_benchmark( N_values= list(range(130, 160, 4)), L=1.0, m=1.0, g=9.82, T_end=5, n_runs=2, theta_init_fn=lambda N: np.zeros(N) )
+#N, solvetime =run_benchmark( N_values= list(range(130, 160, 4)), L=1.0, m=1.0, g=9.82, T_end=5, n_runs=2, theta_init_fn=lambda N: np.zeros(N) )
 
 #SOA
 
 # Test setup
-n = list(range(130, 160, 4))
-n_samples = 2 # <-- number of runs per n
+#n = list(range(130, 160, 4))
+n=list(range(10, 12, 1))
+n_samples = 1 # <-- number of runs per n
 
 # Simulation setups
 tf = 5
@@ -29,6 +30,7 @@ CkJk = np.array([1/12, 1/12, 1/12])
 klOC = np.array([0, 0, 0.5])
 
 dt_n = np.zeros(len(n))
+
 
 for z, k in enumerate(n):
     sample_times = []
@@ -86,6 +88,7 @@ plt.legend()
 plt.xticks(N)
 plt.show()
 
+"""
 # Save summary data
 df = pd.DataFrame({
     "N": N,
@@ -93,5 +96,6 @@ df = pd.DataFrame({
     "soa_time_s": dt_n
 })
 
-df.to_csv("benchmark_results130150.csv", index=False)
-print("Saved benchmark_results130150.csv")
+df.to_csv("benchmark_resultstest.csv", index=False)
+print("Saved benchmark_resultstest.csv")
+"""
