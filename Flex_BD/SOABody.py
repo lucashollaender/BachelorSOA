@@ -21,9 +21,13 @@ class SOABody:
             self.theta0_TS = 0
 
             # Track
-            self.z_springs = []  # Can hold multiple springs on different nodes
+            self.z_springs = []
+            self.track_tensioners = []
             self.F_axial_global = np.zeros((6, 1))
             self.F_axial_track = False
+
+            # Earth Model
+            self.earth_model = None
 
     def set_tau(self, tau):
         self.force.tau = tau
@@ -133,10 +137,9 @@ class SOABody:
         self.set_F_ext(node=node, F_fun=impulse_fun)
     
     # ----- Track -----
-    def get_track_kin(self, last_end, last_end_dot, X, R_i, V, eta, eta_dot):
+    def get_track_kin(self, last_end, last_end_dot, R_i, R3, V, eta, eta_dot):
         # Parameters
         PI = self.flex.PI
-        R3 = sb.q2R(X[0:4].flatten(), 3)
         n_nd = self.flex.n_nd
         klOO_nd = self.flex.klOO_nd
 
@@ -191,15 +194,63 @@ class SOABody:
     def set_global_axial_force(self, F_axial):
         self.force.F_axial_global = np.array([0, 0, 0, F_axial, 0, 0]).reshape(6, 1)
         self.force.F_axial_track = True
+    
+    def set_track_tensioner(self, F_TT_z0, c_TT, z_0, node):
+        """
+        Adds a track tensioner at a specified node.
+        The force is applied along the global z-axis based on the formula:
+        F_TT = F_TT_0 - k_TT * z, where k_TT = F_TT_0 / z_0.
+        """
+        # Calculate stiffness so that z * k_TT = F_TT_0 at distance z_0
+        k_TT = F_TT_z0 / z_0
+        
+        self.force.track_tensioners.append({
+            "node": int(node),
+            "F_TT_z0": float(F_TT_z0),
+            "k_TT": float(k_TT),
+            "c_TT": float(c_TT)
+        })
+    
+    def set_earth_model(self, c, soil_type=None, k_c=None, k_phi=None, n=None):
+        """
+        Applies a Bekker earth model with purely z-dependent Mohr-Coulomb traction.
+        """
+        if soil_type is not None:
+            # Presets: (k_c, k_phi, n, c_soil, mu_soil)
+            soil_presets = {
+                "Hard dirt": (2.0e4, 6.0e5, 0.7, 5.0e2, 0.058), # mu roughly tan(30 deg)
+                "Soft soil": (1.2e4, 3.5e5, 1.2, 1.0e2, 0.036), # mu roughly tan(20 deg)
+                "Sand":      (0.8e4, 2.0e5, 1.6, 0.0,   0.070), # mu roughly tan(35 deg)
+                "Mud":       (0.4e4, 0.8e5, 2.0, 0.5e2, 0.018)  # mu roughly tan(10 deg)
+            }
+            
+            if soil_type in soil_presets:
+                k_c, k_phi, n, c_soil, mu_soil = soil_presets[soil_type]
+            else:
+                k_c, k_phi, n, c_soil, mu_soil = soil_presets["Soft soil"]
+                
+        elif None in (k_c, k_phi, n):
+            raise ValueError("You must provide either a 'soil_type' OR all manual parameters.")
+
+        self.force.earth_model = {
+            "k_c": float(k_c),
+            "k_phi": float(k_phi),
+            "n": float(n),
+            "c": float(c),               # Normal damping
+            "c_soil": float(c_soil),     # Soil cohesion
+            "mu_soil": float(mu_soil),   # Soil friction coefficient
+            "b": float(self.rigid.w) 
+        }
 
     def get_global_forces_term(self, pos, pos_dot, R_i):
-        """Calculates and projects all custom global forces (springs & axial) into the local frame."""
+        """Calculates and projects all custom global forces (springs & axial & earth) into the local frame."""
         n_md = self.flex.n_md
         F_term = np.zeros((n_md + 6, 1))
         
         R6 = sb.get_R6(R_i)
         PI = self.flex.PI
 
+        # z-springs
         for spring in self.force.z_springs:
             idx = spring["node"]
             
@@ -217,7 +268,78 @@ class SOABody:
             r_j = self.get_node_position(idx)
             
             F_term += np.vstack([PI_j.T @ F_loc, sb.phi(r_j) @ F_loc])
+        
+        # Track tensioners
+        for tt in self.force.track_tensioners:
+            idx = tt["node"]
+            
+            if idx < 0:
+                idx = self.flex.n_nd + idx
 
+            # Extract global z position and velocity for this node
+            z = pos[idx][2, 0]
+            z = pos[idx][2, 0]
+            z_dot = pos_dot[idx][2, 0]
+
+            # Calculate force magnitude
+            F_TT_mag = tt["F_TT_z0"] - tt["k_TT"] * z - tt["c_TT"] * z_dot
+
+            # Formulate the global force vector (purely in global z)
+            F_glob = np.array([0, 0, 0, 0, 0, -F_TT_mag]).reshape(6, 1)
+
+            # Transform to the local frame and project onto modes
+            F_loc = R6.T @ F_glob
+            PI_j = PI[6*idx : 6*idx + 6, :]
+            r_j = self.get_node_position(idx)
+            
+            F_term += np.vstack([PI_j.T @ F_loc, sb.phi(r_j) @ F_loc])
+
+        # Bekker earth model & z-dependent Traction
+        if self.force.earth_model is not None:
+            em = self.force.earth_model
+            w = self.rigid.w
+            L_elem = self.flex.L_elem
+            n_nd = self.flex.n_nd
+            
+            for idx in range(n_nd):
+                z = pos[idx][2, 0]
+                z_dot = pos_dot[idx][2, 0]
+                
+                # Apply only for negative z values (node is touching ground)
+                if z < 0:
+                    p = -z 
+                    p_dot = -z_dot
+                    
+                    if idx == 0 or idx == n_nd - 1:
+                        A = (w * L_elem) / 2.0
+                        A_x = 0.5
+                    else:
+                        A = w * L_elem
+                        A_x = 1
+                        
+                    # 1. Normal Force (Bekker)
+                    F_z_mag = A * (em["k_c"] / em["b"] + em["k_phi"]) * (p ** em["n"]) + em["c"] * p_dot
+                    F_z_mag = max(0.0, F_z_mag) # Ground only pushes up
+                    
+                    F_x = - A_x * (1e5 / 2) / 30
+
+                    if F_z_mag > 0:
+                        # 2. Purely z-dependent Traction (Mohr-Coulomb)
+                        #F_x_mag = A * em["c_soil"] + F_z_mag * em["mu_soil"]
+                        
+                        # Apply force opposite to the direction of your axial pull (hardcoded left)
+                        #F_x = #-F_x_mag
+                        
+                        # Formulate the global force vector [Mx, My, Mz, Fx, Fy, Fz]
+                        F_glob = np.array([0, 0, 0, F_x, 0, F_z_mag]).reshape(6, 1)
+                        F_loc = R6.T @ F_glob
+                        
+                        PI_j = PI[6*idx : 6*idx + 6, :]
+                        r_j = self.get_node_position(idx)
+                        
+                        F_term += np.vstack([PI_j.T @ F_loc, sb.phi(r_j) @ F_loc])
+        
+        # 3. Existing Global Axial Force
         if self.force.F_axial_track:
             F_loc = R6.T @ self.force.F_axial_global
             PI_end = PI[-6:, :]

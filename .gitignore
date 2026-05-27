@@ -205,3 +205,46 @@ cython_debug/
 marimo/_static/
 marimo/_lsp/
 __marimo__/
+
+# ---------------------------------------------------
+# C++ "Trash" Files to Ignore
+# ---------------------------------------------------
+
+# Compiled Object files
+*.o
+*.obj
+
+# Precompiled Headers
+*.gch
+*.pch
+
+# Compiled Dynamic libraries
+*.so
+*.dylib
+*.dll
+
+# Compiled Static libraries
+*.a
+*.lib
+
+# Executables
+*.exe
+*.out
+*.app
+
+# Standard Build Directories (CMake, Make, etc.)
+build/
+bin/
+obj/
+out/
+
+# IDE specific folders (Optional but recommended)
+.vscode/
+.vs/
+*.user
+*.suo
+*.pdb
+
+# OS generated files
+.DS_Store
+Thumbs.db
