@@ -28,7 +28,7 @@ if __name__ == "__main__":
     MODE = "single"
 
     if MODE == "single":
-        N = 10
+        N = 20
         theta_init = 0 * np.ones(N)
 
         result = run_single_case(

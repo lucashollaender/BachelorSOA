@@ -7,6 +7,7 @@ from scipy.spatial.transform import Rotation as R
 import pandas as pd
 from matplotlib.animation import FuncAnimation
 import time
+from scipy.optimize import root
 
 
 def skew(z):
@@ -139,6 +140,11 @@ def get_R_tot(R6, n_md):
     rw2 = np.hstack([np.zeros((6, n_md)), R6])
     return np.vstack([rw1, rw2])
 
+def get_R6(R3):
+    z3 = np.zeros((3, 3))
+    rw1 = np.hstack([R3, z3])
+    rw2 = np.hstack([z3, R3])
+    return np.vstack([rw1, rw2])
 
 def integrate_RK4(system, t0, tf, dt):
     """
@@ -169,6 +175,53 @@ def integrate_RK4(system, t0, tf, dt):
         if not np.all(np.isfinite(Y[:, i+1])):
             raise FloatingPointError(
                 f"RK4 produced invalid state at step {i+1}, t={t[i+1]}"
+            )
+
+    return Y, t
+
+
+def integrate_backward_euler(system, t0, tf, dt, tol=1e-8, max_iter=20):
+    nt = int((tf - t0) / dt) + 1
+    t = np.linspace(t0, tf, nt)
+
+    y0 = system.S0.copy()
+    n = len(y0)
+
+    Y = np.zeros((n, nt))
+    Y[:, 0] = y0
+
+    for i in range(nt - 1):
+        y_old = Y[:, i]
+        t_next = t[i + 1]
+
+        # Explicit Euler predictor
+        y_guess = y_old + dt * system.EOM(t[i], y_old)
+
+        def residual(y_next):
+            return y_next - y_old - dt * system.EOM(t_next, y_next)
+
+        sol = root(
+            residual,
+            y_guess,
+            method="hybr",
+            options={
+                "xtol": tol,
+                "maxfev": max_iter * (n + 1),
+            }
+        )
+
+        if not sol.success:
+            raise RuntimeError(
+                f"Backward Euler failed at step {i+1}, "
+                f"t={t_next:.6f}: {sol.message}"
+            )
+
+        Y[:, i + 1] = sol.x
+
+        if not np.all(np.isfinite(Y[:, i + 1])):
+            raise FloatingPointError(
+                f"Backward Euler produced invalid state at step {i+1}, "
+                f"t={t_next:.6f}"
             )
 
     return Y, t

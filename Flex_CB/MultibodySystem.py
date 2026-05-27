@@ -2,7 +2,7 @@ import numpy as np
 import pandas as pd
 from SOALIB import soalib as sb
 from SystemState import SystemState
-from ATBI_Flex import ATBI_Flex
+from ATBI_Flex_Grav import ATBI_Flex
 
 
 class MultibodySystem:
