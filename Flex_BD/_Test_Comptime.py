@@ -13,12 +13,14 @@ import matplotlib.pyplot as plt
 # ---------------------------------------------------------------------
 def build_flexible_soa_model(n_bodies=2, mode_selection=None, n_md=20):
     """
-    Builds an n-body flexible SOA model with a specified mode selection.
+    Builds an n-body flexible SOA model.
 
     If mode_selection is None:
-        The first n_md modes are used.
-        These should be the lowest-frequency modes if your structural analysis
-        sorts the eigenmodes by frequency.
+        The first n_md lowest-frequency modes are used from all available modes.
+
+    If mode_selection is given:
+        The first n_md lowest-frequency modes are selected from the allowed
+        mode pool defined by mode_selection.
     """
 
     # Material parameters (alu)
@@ -224,11 +226,15 @@ if __name__ == "__main__":
     n_runs = 2
 
     # Choose:
-    # "timing"      -> run computation-time benchmark vs number of bodies
-    # "mode_timing" -> run computation-time benchmark vs number of modes
-    # "simulation"  -> run and animate one simulation
-    run_mode = "mode_timing"
+    # "timing"          -> computation-time benchmark vs number of bodies
+    # "mode_timing"     -> computation-time benchmark vs number of modes from selected mode pool
+    # "mode_timing_all" -> computation-time benchmark vs number of modes with no mode selection
+    # "simulation"      -> run and animate one simulation
+    run_mode = "mode_timing_all"
 
+    # -----------------------------------------------------------------
+    # Simulation settings
+    # -----------------------------------------------------------------
     # Used only when run_mode == "simulation"
     n_bodies = 3
 
@@ -240,10 +246,12 @@ if __name__ == "__main__":
 
     simulation_n_md = 20
 
+    # -----------------------------------------------------------------
+    # Timing vs number of bodies
+    # -----------------------------------------------------------------
     # Used only when run_mode == "timing"
     n_body_values = np.arange(1, 9)
 
-    # Mode-selection cases for the normal timing benchmark
     mode_cases = [
         {
             "label": "2 bending",
@@ -251,7 +259,6 @@ if __name__ == "__main__":
                 "bending_xy": 1,
                 "bending_xz": 1,
             },
-
         },
         {
             "label": "2 bending + 1 axial",
@@ -271,13 +278,42 @@ if __name__ == "__main__":
         },
     ]
 
+    # -----------------------------------------------------------------
+    # Mode timing using selected mode pool
+    # -----------------------------------------------------------------
     # Used only when run_mode == "mode_timing"
-    # Number of bodies is constant for each curve.
-    constant_body_cases = [2, 4, 6]
+    # This defines the allowed mode pool.
+    # The benchmark selects the first n_md lowest-frequency modes from this pool.
+    mode_timing_case = {
+        "label": "8 bending_xy + 10 bending_xz + 2 axial",
+        "mode_selection": {
+            "bending_xy": 8,
+            "bending_xz": 10,
+            "axial_x": 2,
+        },
+    }
 
-    # Number of first/lowest-frequency modes to include.
-    # No manual mode_selection is used in this benchmark.
-    n_mode_values = np.arange(1, 20)
+    # Number of bodies to test for selected-pool mode timing
+    mode_timing_body_values = np.array([2])
+
+    # Run with 1, 2, 3, ..., 20 modes from the selected mode pool
+    n_mode_values = np.arange(
+        1, sum(mode_timing_case["mode_selection"].values()) + 1)
+
+    # -----------------------------------------------------------------
+    # Mode timing using all available modes
+    # -----------------------------------------------------------------
+    # Used only when run_mode == "mode_timing_all"
+    # No mode_selection is used.
+    # The benchmark selects the first n_md lowest-frequency modes overall.
+    mode_timing_all_label = "All modes"
+    mode_timing_all_mode_selection = None
+
+    # Number of bodies to test for all-mode timing
+    mode_timing_all_body_values = np.array([2])
+
+    # Run with 1, 2, 3, ..., 20 lowest-frequency modes overall
+    n_mode_values_all = np.arange(1, 30)
 
     if run_mode == "timing":
 
@@ -336,26 +372,35 @@ if __name__ == "__main__":
 
     elif run_mode == "mode_timing":
 
+        label = mode_timing_case["label"]
+        mode_selection = mode_timing_case["mode_selection"]
+        total_modes = sum(mode_selection.values())
+
         mode_timing_results = {}
 
-        for n_bodies_i in constant_body_cases:
+        print("\n" + "=" * 60)
+        print("Running mode-number benchmark")
+        print(f"Mode pool: {label}")
+        print(f"Mode selection pool: {mode_selection}")
+        print(f"Maximum selected modes: {total_modes}")
+        print("=" * 60)
+
+        for n_bodies_i in mode_timing_body_values:
 
             SOAElapsed = []
 
             print("\n" + "=" * 60)
-            print(f"Running mode benchmark for {n_bodies_i} bodies")
-            print("Mode selection: None")
-            print("Using first n_md modes / lowest-frequency modes")
+            print(f"Running benchmark for {n_bodies_i} bodies")
             print("=" * 60)
 
             for n_md_i in n_mode_values:
 
-                label = f"First {n_md_i} modes"
+                current_label = f"First {n_md_i} modes from pool"
 
                 results = average_soa_simulation_time(
                     n_bodies=n_bodies_i,
-                    mode_selection=None,
-                    label=label,
+                    mode_selection=mode_selection,
+                    label=current_label,
                     solver=solver,
                     n_runs=n_runs,
                     n_md=n_md_i,
@@ -369,7 +414,7 @@ if __name__ == "__main__":
             mode_timing_results[n_bodies_i] = SOAElapsed
 
         # -------------------------------------------------------------
-        # Plot computation time vs number of modes
+        # Plot computation time vs number of selected modes
         # -------------------------------------------------------------
         plt.figure()
 
@@ -381,9 +426,71 @@ if __name__ == "__main__":
                 label=f"{n_bodies_i} bodies",
             )
 
-        plt.xlabel("Number of modes")
+        plt.xlabel("Number of selected modes")
         plt.ylabel("Average computation time [s]")
-        plt.title("SOA Computation Time")
+        plt.title("SOA Computation Time vs Number of Modes")
+        plt.grid(True)
+        plt.legend(title="Number of bodies")
+        plt.tight_layout()
+        plt.show()
+
+    elif run_mode == "mode_timing_all":
+
+        label = mode_timing_all_label
+        mode_selection = mode_timing_all_mode_selection
+
+        mode_timing_all_results = {}
+
+        print("\n" + "=" * 60)
+        print("Running mode-number benchmark with no mode selection")
+        print("Mode selection: None")
+        print("Using first n_md lowest-frequency modes overall")
+        print("=" * 60)
+
+        for n_bodies_i in mode_timing_all_body_values:
+
+            SOAElapsed = []
+
+            print("\n" + "=" * 60)
+            print(f"Running benchmark for {n_bodies_i} bodies")
+            print("=" * 60)
+
+            for n_md_i in n_mode_values_all:
+
+                current_label = f"First {n_md_i} modes"
+
+                results = average_soa_simulation_time(
+                    n_bodies=n_bodies_i,
+                    mode_selection=mode_selection,
+                    label=current_label,
+                    solver=solver,
+                    n_runs=n_runs,
+                    n_md=n_md_i,
+                )
+
+                print_average_timing_report(results)
+
+                # Use average integration elapsed time only
+                SOAElapsed.append(results["integration_elapsed"])
+
+            mode_timing_all_results[n_bodies_i] = SOAElapsed
+
+        # -------------------------------------------------------------
+        # Plot computation time vs number of selected modes
+        # -------------------------------------------------------------
+        plt.figure()
+
+        for n_bodies_i, elapsed_values in mode_timing_all_results.items():
+            plt.plot(
+                n_mode_values_all,
+                elapsed_values,
+                "o-",
+                label=f"{n_bodies_i} bodies",
+            )
+
+        plt.xlabel("Number of selected modes")
+        plt.ylabel("Average computation time [s]")
+        plt.title("SOA Computation Time vs Number of Modes")
         plt.grid(True)
         plt.legend(title="Number of bodies")
         plt.tight_layout()
@@ -406,5 +513,6 @@ if __name__ == "__main__":
 
     else:
         raise ValueError(
-            "run_mode must be either 'timing', 'mode_timing', or 'simulation'"
+            "run_mode must be either 'timing', 'mode_timing', "
+            "'mode_timing_all', or 'simulation'"
         )
