@@ -17,7 +17,7 @@ H_type2 = "revy"
 H_type3 = "revy"
 
 # n_md_max = (n_nd - 1) * 3
-E, G, c, rho, n_nd, n_md = 1e9, 5e6, 1, 1.4e3, 11, 20
+E, G, c, rho, n_nd, n_md = 1e9, 5e6, 3, 1.4e3, 11, 20
 
 w, h = 0.3, 0.08
 
@@ -43,9 +43,11 @@ f3 = Flex_Properties(E, G, c, n_nd, n_md, mode_selection={
                      "axial_x": 1})
 
 F_axial = 1e5
-f1.set_constant_axial_load(F_axial - F_axial/6)
-f2.set_constant_axial_load(F_axial - F_axial/6*3)
-f3.set_constant_axial_load(F_axial - F_axial/6*5)
+F_traction = F_axial #F_axial/3
+
+f1.set_constant_axial_load(F_axial + F_traction)
+f2.set_constant_axial_load(F_axial + F_traction*2)
+f3.set_constant_axial_load(F_axial + F_traction*3)
 
 b1 = SOABody(j1, r1, f1)
 b2 = SOABody(j2, r2, f2)
@@ -75,24 +77,23 @@ b3.set_TS(k_TS, c_TS, 0)
 c_earth = 2e5
 soil_type = "Hard dirt"
 
-b1.set_earth_model(c=c_earth, soil_type=soil_type)
-b2.set_earth_model(c=c_earth, soil_type=soil_type)
-b3.set_earth_model(c=c_earth, soil_type=soil_type)
+b1.set_earth_model(F_traction, c=c_earth, soil_type=soil_type)
+b2.set_earth_model(F_traction, c=c_earth, soil_type=soil_type)
+b3.set_earth_model(F_traction, c=c_earth, soil_type=soil_type)
 
-F_ext2 = np.array([0, 0, 0, 0, 0, 6e3]).reshape(6, 1)
-#b2.set_impulse_force(0.5, 0.25, F_ext2)
-
-k_z = 2e6
+k_z = 2e5
 c_z = 1e4
 
 b1.set_global_axial_force(F_axial)
 b1.set_z_spring(k_z, c_z, node=-1)
 
-F_TT_z0, c_TT, z_0 = 5e3, 1e5, 0.1
+F_TT_z0, c_TT, z_0 = 5e4, 1e4, 0.1 # c=1e5
 
-b1.set_track_tensioner(F_TT_z0, c_TT, z_0, node=5)
-b2.set_track_tensioner(F_TT_z0, c_TT, z_0, node=5)
-b3.set_track_tensioner(F_TT_z0, c_TT, z_0, node=5)
+mid_node = n_nd // 2
+
+b1.set_track_tensioner(F_TT_z0, c_TT, z_0, node=mid_node)
+b2.set_track_tensioner(F_TT_z0, c_TT, z_0, node=mid_node)
+b3.set_track_tensioner(F_TT_z0, c_TT, z_0, node=mid_node)
 
 bodies = [b1, b2, b3]
 
@@ -119,3 +120,59 @@ save_dir = r"C:\Users\jepp6\OneDrive - Aarhus universitet\Dokumenter\Noter\6. Se
 
 # sim.animate_nodes(filename="Test1", save_dir=save_dir)
 sim.animate_nodes()
+
+# Plot
+import matplotlib.pyplot as plt
+import matplotlib as mpl
+
+# ==========================================
+# Static 2D Plot matching Simulation Style
+# ==========================================
+
+# 1. Get the final nodal positions
+final_pos = sim.data.pos[-1]
+n_bodies = len(final_pos)
+
+# 2. Set up the 2D figure
+fig, ax = plt.subplots(figsize=(10, 6))
+
+# 3. Plotting styles matching the simulation
+cmap = mpl.colormaps['tab10']
+colors = cmap(np.linspace(0, 1, n_bodies))
+
+all_xs, all_zs = [], []
+
+# Plot each body
+for b_idx in range(n_bodies):
+    body_nodes = final_pos[b_idx]
+    
+    # Extract X (index 0) and Z (index 2) coordinates
+    xs = [float(node[0][0]) for node in body_nodes]
+    zs = [float(node[2][0]) for node in body_nodes]
+    
+    # Plot the beam as a thick colored line
+    ax.plot(xs, zs, '-', lw=4, color=colors[b_idx])
+    
+    # Plot the nodes as black dots
+    ax.plot(xs, zs, 'ko', markersize=4)
+    
+    all_xs.extend(xs)
+    all_zs.extend(zs)
+
+# Plot origin for reference
+ax.plot(0, 0, 'o', color='gray', markersize=6)
+
+# Formatting
+ax.set_xlabel('X Position [m]')
+ax.set_ylabel('Z Position [m]')
+ax.set_title(f"Track Configuration of {n_bodies} Bodies")
+ax.grid(True)
+#ax.axis('equal') # Keeps the physical aspect ratio 1:1
+
+z_min = min(all_zs)
+z_max = max(all_zs)
+#ax.set_ylim(5 * z_min, -2 * z_min)
+ax.set_ylim(-0.03, 0.01)
+
+plt.tight_layout()
+plt.show()

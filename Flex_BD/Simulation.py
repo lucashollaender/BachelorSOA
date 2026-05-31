@@ -18,8 +18,8 @@ plt.rcParams['animation.embed_limit'] = 1000
 class Simulation:
     class Data:
         def __init__(self):
-            self.time, self.state, self.X_list, self.V_fl_list, self.a_fl_list, self.b_fl_list, self.alpha_fl_list, self.pos, self.R_i_list = [
-            ], [], [], [], [], [], [], [], []
+            self.time, self.state, self.X_list, self.V_fl_list, self.a_fl_list, self.b_fl_list, self.alpha_fl_list, self.pos, self.R_i_list, self.F_int = [
+            ], [], [], [], [], [], [], [], [], []
 
     class Setting:
         def __init__(self):
@@ -148,6 +148,7 @@ class Simulation:
             self.data.alpha_fl_list.append(alpha_fl)
             self.data.pos.append(pos)
             self.data.R_i_list.append(R_i)
+            self.data.F_int.append(F_int)
 
     # Call functions for data
     def get_state(self):
@@ -170,6 +171,9 @@ class Simulation:
     
     def get_pos(self):
         return self.data.pos
+    
+    def get_F_int(self):
+        return self.data.F_int
 
     # Settings
     def set_xlim(self, xmin, xmax):

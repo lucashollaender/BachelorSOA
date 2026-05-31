@@ -19,7 +19,6 @@ E, G, c, rho, n_nd, n_md = 230e9, 80e9, 0.2, 7850, 11, 10
 
 w, h = 0.04, 0.06
 
-"""
 j1 = Joint(klOO1, H_type1)
 r1 = Rigid_Properties(rho, w, h)
 f1 = Flex_Properties(E, G, c, n_nd, n_md, mode_selection={
@@ -37,26 +36,10 @@ r3 = Rigid_Properties(rho, w, h)
 f3 = Flex_Properties(E, G, c, n_nd, n_md, mode_selection={
                      "bending_xy": 2,
                      "bending_xz": 2})
-"""
-j1 = Joint(klOO1, H_type1)
-r1 = Rigid_Properties(rho, w, h)
-f1 = Flex_Properties(E, G, c, n_nd, n_md)
-
-j2 = Joint(klOO2, H_type2)
-r2 = Rigid_Properties(rho, w, h)
-f2 = Flex_Properties(E, G, c, n_nd, n_md)
-
-j3 = Joint(klOO3, H_type3)
-r3 = Rigid_Properties(rho, w, h)
-f3 = Flex_Properties(E, G, c, n_nd, n_md)
 
 b1 = SOABody(j1, r1, f1)
 b2 = SOABody(j2, r2, f2)
 b3 = SOABody(j3, r3, f3)
-
-
-# b1.set_initial_beta0(1)
-# b1.set_initial_eta0(np.array([0, 0, 0, 0, 0, 0, 0]).reshape(7, 1))
 
 PIe = b1.flex.PI_end
 
@@ -75,25 +58,10 @@ M = b1.flex.M_fl
 # eta0 = np.array([0, 0, 0, 0, 10, 0]).reshape(6, 1)
 # b1.set_initial_eta0(eta0)
 
-F_ext3 = np.array([0, 0, 0, 100, 0, 0]).reshape(6, 1)
-#b3.set_F_ext(node=-1, F_ext=F_ext3)
+F_ext1 = np.array([0, 0, 0, 0, 0, 1e4]).reshape(6, 1)
+b1.set_F_ext(node=-1, F_ext=F_ext1)
 
-def ramp_axial_force(t, state):
-    # Linearly increase the force: at t=0 it's 0, at t=10 it's 1e4
-    F_axial = 100 * (t / 3)
-    
-    # Construct the 6x1 spatial force vector: [Mx, My, Mz, Fx, Fy, Fz]^T
-    F_vec = np.zeros((6, 1))
-    
-    # Index 3 corresponds to the Fx (axial) direction
-    F_vec[3, 0] = F_axial 
-    
-    return F_vec
-
-# Apply the time-dependent force to the tip node (-1) of your body
-b3.set_F_ext(node=-1, F_fun=ramp_axial_force)
-
-bodies = [b3]
+bodies = [b1, b2]
 
 system = MultibodySystem(bodies)
 system.set_gravity(False)
