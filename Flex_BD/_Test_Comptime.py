@@ -230,17 +230,17 @@ if __name__ == "__main__":
     # "mode_timing"     -> computation-time benchmark vs number of modes from selected mode pool
     # "mode_timing_all" -> computation-time benchmark vs number of modes with no mode selection
     # "simulation"      -> run and animate one simulation
-    run_mode = "mode_timing_all"
+    run_mode = "simulation"
 
     # -----------------------------------------------------------------
     # Simulation settings
     # -----------------------------------------------------------------
     # Used only when run_mode == "simulation"
-    n_bodies = 3
+    n_bodies = 20
 
     simulation_mode_selection = {
-        "bending_xy": 2,
-        "bending_xz": 2,
+        "bending_xy": 1,
+        "bending_xz": 1,
         "axial_x": 1,
     }
 
