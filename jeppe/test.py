@@ -3,8 +3,8 @@ import numpy as np
 from SOALIB import soalib as sb
 
 klOO = np.array([1, 0, 0])
-H_type1 = "revy"
-H_type2 = "revy"
+H_type1 = "free"
+H_type2 = "free"
 
 m = 2
 CkJk = np.array([0.00053, 0.16693, 0.16693])
