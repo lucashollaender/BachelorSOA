@@ -348,7 +348,7 @@ class SOABody:
         deltaV = H.T @ beta
 
         b_eta = np.zeros((n_md, 1))
-        b_r = sb.skew6(V) @ deltaV - sb.bar6(deltaV) @ deltaV
+        b_r = sb.skew6(V) @ deltaV
         return np.vstack([b_eta, b_r])
 
     def gyroscopic(self, V, M):

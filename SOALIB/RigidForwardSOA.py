@@ -141,7 +141,7 @@ class ATBI:
 
     def coriolis(self, V, beta, H):
         deltaV = H.T @ beta
-        return sb.skew6(V) @ deltaV - sb.bar6(deltaV) @ deltaV
+        return sb.skew6(V) @ deltaV
 
     def gyroscopic(self, V, M):
         return sb.bar6(V) @ M @ V
