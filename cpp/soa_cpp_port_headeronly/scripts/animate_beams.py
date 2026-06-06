@@ -10,7 +10,7 @@ from matplotlib.animation import FuncAnimation
 
 
 project_dir = Path(__file__).resolve().parents[1]
-csv_path = project_dir / "simulation_nodes_5_links.csv"
+csv_path = project_dir / "simulation_nodes_10_links.csv"
 
 nodes = pd.read_csv(csv_path)
 

@@ -7,8 +7,10 @@ from scipy.signal import find_peaks
 # -------------------------------------------------
 # Files
 # -------------------------------------------------
-file_1 = Path("fft_response.csv")
-file_2 = Path("fft_response0axial.csv")
+file_1 = Path(__file__).resolve().parent.parent / "fft_response.csv"
+df1 = pd.read_csv(file_1)
+file_2 = Path(__file__).resolve().parent.parent / "fft_response0axial.csv"
+df2 = pd.read_csv(file_2)
 
 label_1 = "With axial load"
 label_2 = "Without axial load"

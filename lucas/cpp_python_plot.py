@@ -14,11 +14,11 @@ py_file = Path(r"C:\Project\BachelorSOA\simulation_nodes_2_links_python.csv")
 # -------------------------------------------------
 cpp = pd.read_csv(cpp_file)
 cpp = cpp.rename(columns={"t": "time"})
-cpp = cpp[["time", "body", "node", "z"]].copy()
+cpp = cpp[["time", "body", "node", "x", "z"]].copy()
 
 # -------------------------------------------------
 # Load Python CSV
-# Expected columns from the Python test file:
+# Expected columns:
 # time, frame, link, body_index, node, x, y, z
 # -------------------------------------------------
 py = pd.read_csv(py_file)
@@ -37,19 +37,20 @@ if "time" not in py.columns:
     else:
         raise KeyError("Python CSV must contain either 'time' or 't'.")
 
-py = py[["time", "body", "node", "z"]].copy()
+py = py[["time", "body", "node", "x", "z"]].copy()
 
 # Make sure values are numeric
 for df in [cpp, py]:
-    for col in ["time", "body", "node", "z"]:
+    for col in ["time", "body", "node", "x", "z"]:
         df[col] = pd.to_numeric(df[col], errors="coerce")
-    df.dropna(subset=["time", "body", "node", "z"], inplace=True)
+    df.dropna(subset=["time", "body", "node", "x", "z"], inplace=True)
 
 # -------------------------------------------------
-# Two plots: end-node z-coordinate for body 0 and body 1
+# Two plots: end-node x- and z-coordinates for body 0 and body 1
 # -------------------------------------------------
 for body_id in [0, 1]:
     cpp_body = cpp[cpp["body"] == body_id]
+
     # Python body order is reversed compared to C++
     py_body = py[py["body"] == 1 - body_id]
 
@@ -63,17 +64,24 @@ for body_id in [0, 1]:
     cpp_end_node = cpp_body["node"].max()
     py_end_node = py_body["node"].max()
 
-    cpp_tip = cpp_body[cpp_body["node"] == cpp_end_node]
-    py_tip = py_body[py_body["node"] == py_end_node]
+    cpp_tip = cpp_body[cpp_body["node"] == cpp_end_node].sort_values("time")
+    py_tip = py_body[py_body["node"] == py_end_node].sort_values("time")
 
     plt.figure()
-    plt.plot(cpp_tip["time"], cpp_tip["z"], label="C++")
-    plt.plot(py_tip["time"], py_tip["z"], "--", label="Python")
-    plt.xlabel("Time [s]")
-    plt.ylabel("End-node z-coordinate [m]")
-    plt.title(f"Body {body_id}: end-node z-coordinate")
+
+    # z-coordinate
+    plt.plot(cpp_tip["time"], cpp_tip["z"], label="C++ z")
+    plt.plot(py_tip["time"], py_tip["z"], "--", label="Python z")
+
+    # x-coordinate
+    plt.plot(cpp_tip["time"], cpp_tip["x"], label="C++ x")
+    plt.plot(py_tip["time"], py_tip["x"], "--", label="Python x")
+
+    plt.xlabel("Time [s]", fontsize=16)
+    plt.ylabel("End-node coordinate [m]", fontsize=16)
+    plt.title(f"Body {body_id+1}: end-node x- and z-coordinates", fontsize=18)
     plt.grid(True)
-    plt.legend()
+    plt.legend(fontsize=14)
     plt.tight_layout()
 
 plt.show()

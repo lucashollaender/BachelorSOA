@@ -49,7 +49,7 @@ int main(int argc, char** argv) {
         // Flexible beam properties
         // For many links, reduce n_md or dt if it becomes unstable.
         FlexProperties flex(
-            9.0e8,   // E
+            9.0e8,   // E 9e8
             2.6e7,   // G
             0.1,     // damping
             8,       // nodes per link
