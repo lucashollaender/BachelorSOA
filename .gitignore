@@ -251,4 +251,7 @@ out/
 # OS generated files
 .DS_Store
 Thumbs.db
+<<<<<<< HEAD
+>>>>>>> 387fb2439f2a8f7ba324074f9b615a83d9b70b35
+=======
 >>>>>>> 387fb2439f2a8f7ba324074f9b615a83d9b70b35

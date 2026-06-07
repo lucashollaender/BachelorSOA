@@ -11,6 +11,9 @@ H_type2 = "spherical"
 klOO = np.array([1, 0, 0])
 H_type1 = "free"
 H_type2 = "free"
+<<<<<<< HEAD:Development Code/jeppe/test.py
+>>>>>>> 387fb2439f2a8f7ba324074f9b615a83d9b70b35:jeppe/test.py
+=======
 >>>>>>> 387fb2439f2a8f7ba324074f9b615a83d9b70b35:jeppe/test.py
 
 m = 2
