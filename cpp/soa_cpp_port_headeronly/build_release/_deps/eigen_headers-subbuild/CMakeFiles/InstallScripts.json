@@ -1,7 +1,0 @@
-{
-	"InstallScripts" : 
-	[
-		"C:/Project/BachelorSOA/cpp/soa_cpp_port_headeronly/build_release/_deps/eigen_headers-subbuild/cmake_install.cmake"
-	],
-	"Parallel" : false
-}
