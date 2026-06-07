@@ -7,7 +7,7 @@ from scipy.signal import find_peaks
 # -------------------------------------------------
 # Files
 # -------------------------------------------------
-input_file = Path("fft_nodal_dofs.csv")
+input_file= Path(__file__).resolve().parent.parent / "fft_nodal_dofs.csv"
 
 # -------------------------------------------------
 # Settings
@@ -136,7 +136,7 @@ for name in translation_signals:
             xy=(row["frequency_hz"], row["amplitude"]),
             xytext=(4, 6),
             textcoords="offset points",
-            fontsize=8,
+            fontsize=14,
             rotation=45
         )
 
@@ -144,14 +144,14 @@ for f in theoretical_freqs:
     plt.axvline(f, linestyle=":", linewidth=0.8, alpha=0.5)
 
 plt.xlim(0, f_max_plot)
-plt.ylim(bottom=0)
+plt.ylim(bottom=0, top=5)
 
-plt.xlabel("Frequency [Hz]", fontsize=12)
-plt.ylabel("FFT amplitude [-]", fontsize=12)
-plt.title("FFT of translational deformation at tip node", fontsize=14)
+plt.xlabel("Frequency [Hz]", fontsize=16)
+plt.ylabel("FFT amplitude [-]", fontsize=16)
+plt.title("FFT of translational deformation at tip node", fontsize=20)
 
 plt.grid(True, linestyle=":", linewidth=0.8)
-plt.legend(fontsize=11)
+plt.legend(fontsize=16)
 plt.tight_layout()
 
 plt.savefig("fft_translations_raw_from_csv.png", dpi=300)
@@ -189,7 +189,7 @@ for name in rotation_signals:
             xy=(row["frequency_hz"], row["amplitude"]),
             xytext=(4, 6),
             textcoords="offset points",
-            fontsize=8,
+            fontsize=14,
             rotation=45
         )
 
@@ -197,14 +197,14 @@ for f in theoretical_freqs:
     plt.axvline(f, linestyle=":", linewidth=0.8, alpha=0.5)
 
 plt.xlim(0, f_max_plot)
-plt.ylim(bottom=0)
+plt.ylim(bottom=0, top=12)
 
-plt.xlabel("Frequency [Hz]", fontsize=12)
-plt.ylabel("FFT amplitude [-]", fontsize=12)
-plt.title("FFT of rotational deformation at tip node", fontsize=14)
+plt.xlabel("Frequency [Hz]", fontsize=16)
+plt.ylabel("FFT amplitude [-]", fontsize=16)
+plt.title("FFT of rotational deformation at tip node", fontsize=20)
 
 plt.grid(True, linestyle=":", linewidth=0.8)
-plt.legend(fontsize=11)
+plt.legend(fontsize=16)
 plt.tight_layout()
 
 plt.savefig("fft_rotations_raw_from_csv.png", dpi=300)

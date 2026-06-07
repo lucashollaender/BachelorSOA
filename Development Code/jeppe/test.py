@@ -2,10 +2,16 @@ from SOALIB.RigidForwardSOA import Joint, Inertia, SOABody, MultibodySystem, Sim
 import numpy as np
 from SOALIB import soalib as sb
 
+<<<<<<< HEAD:Development Code/jeppe/test.py
 klOO1 = np.array([1, 0, 0])
 klOO2 = np.array([0, 1, 0])
 H_type1 = "spherical"
 H_type2 = "spherical"
+=======
+klOO = np.array([1, 0, 0])
+H_type1 = "free"
+H_type2 = "free"
+>>>>>>> 387fb2439f2a8f7ba324074f9b615a83d9b70b35:jeppe/test.py
 
 m = 2
 CkJk = np.array([0.00053, 0.16693, 0.16693])
